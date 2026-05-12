@@ -75,6 +75,10 @@ export function createUserRepo(db: Db) {
         )
         .all() as UserRow[];
     },
+
+    deleteUser(id: string): void {
+      db.prepare("DELETE FROM users WHERE id = ?").run(id);
+    },
   };
 }
 

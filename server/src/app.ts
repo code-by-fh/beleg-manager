@@ -15,6 +15,7 @@ import type { PendingStore } from "./receipts/pendingStore.js";
 import { buildReceiptsRouter } from "./receipts/routes.js";
 import { buildStatsRouter } from "./stats/routes.js";
 import { buildDriveRouter } from "./drive/routes.js";
+import { buildAdminRouter } from "./admin/routes.js";
 
 export type AppDeps = {
   config: Config;
@@ -57,6 +58,7 @@ export function createApp(deps: AppDeps): Express {
     gemini: deps.gemini,
     pending: deps.pending,
   }));
+  app.use("/api/admin", buildAdminRouter(deps.config, userRepo, deps.db));
 
   if (deps.config.nodeEnv === "production") {
     const here = path.dirname(url.fileURLToPath(import.meta.url));
