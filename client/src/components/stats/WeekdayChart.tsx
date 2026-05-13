@@ -27,7 +27,7 @@ export function WeekdayChart() {
   const buckets = Array.from({ length: 7 }, (_, i) => ({ label: WEEKDAYS[i], total: 0 }));
   for (const r of receiptsData?.rows ?? []) {
     const dow = parseDayOfWeek(r.datum);
-    if (dow !== null) buckets[dow].total += r.betrag;
+    if (dow !== null) buckets[dow]!.total += r.betrag;
   }
 
   return (

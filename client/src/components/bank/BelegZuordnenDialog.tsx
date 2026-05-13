@@ -50,6 +50,7 @@ export function BelegZuordnenDialog({ transaction, onClose, onAssigned }: Props)
     try {
       await bankApi.matchTransaction(transaction.id, receiptId);
       toast({ title: "Beleg zugeordnet" });
+      onClose();
       onAssigned();
     } catch {
       toast({ title: "Zuordnung fehlgeschlagen", variant: "destructive" });

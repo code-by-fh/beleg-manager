@@ -236,12 +236,13 @@ export function KontoabgleichPage() {
                     <TableHead>Händler</TableHead>
                     <TableHead className="text-right">Betrag</TableHead>
                     <TableHead className="max-w-[200px]">Verwendungszweck</TableHead>
+                    <TableHead>Konfidenz</TableHead>
                     <TableHead className="text-right">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {unmatched.length === 0 ? (
-                    <EmptyRow colSpan={5} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
+                    <EmptyRow colSpan={6} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
                   ) : (
                     unmatched.map((tx) => (
                       <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border">
@@ -251,6 +252,7 @@ export function KontoabgleichPage() {
                         <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={tx.verwendungszweck}>
                           {tx.verwendungszweck}
                         </TableCell>
+                        <TableCell>—</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button
