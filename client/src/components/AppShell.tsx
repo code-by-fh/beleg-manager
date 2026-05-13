@@ -2,28 +2,37 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight } from "lucide-react";
+import { useDriveInbox } from "@/hooks/useDriveInbox";
 
 const navItems = [
-  { to: "/",         label: "Dashboard",    icon: LayoutDashboard },
-  { to: "/upload",   label: "Erfassen",     icon: PlusCircle      },
-  { to: "/settings", label: "Einstellungen", icon: Settings       },
+  { to: "/",         label: "Dashboard",    icon: LayoutDashboard         },
+  { to: "/receipts", label: "Belege",       icon: Receipt                 },
+  { to: "/splits",   label: "Aufteilungen", icon: SplitSquareHorizontal   },
+  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight      },
+  { to: "/upload",   label: "Erfassen",     icon: PlusCircle              },
+  { to: "/settings", label: "Einstellungen", icon: Settings               },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
-  "/":         "Dashboard",
-  "/upload":   "Erfassen",
-  "/review":   "Prüfen",
-  "/settings": "Einstellungen",
+  "/":          "Dashboard",
+  "/receipts":  "Belege",
+  "/splits":    "Aufteilungen",
+  "/upload":          "Erfassen",
+  "/kontoabgleich":   "Kontoabgleich",
+  "/review":          "Prüfen",
+  "/settings":        "Einstellungen",
 };
 
 export function AppShell() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const location = useLocation();
-
   const pageTitle = PAGE_TITLES[location.pathname] ?? "Beleg Manager";
-  const initials = user?.email?.substring(0, 2).toUpperCase() ?? "BM";
+  const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
+
+  const { data: inboxData } = useDriveInbox();
+  const inboxCount = inboxData?.files?.length ?? 0;
 
   return (
     <div className="h-screen-safe flex bg-[hsl(var(--background))] w-full">
@@ -54,12 +63,18 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} />
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.to === "/upload" && inboxCount > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {inboxCount}
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
+
 
         {/* User / Logout */}
         <div className="mt-auto pt-4 border-t border-[hsl(var(--border))]">
@@ -144,8 +159,13 @@ export function AppShell() {
                     : "text-[hsl(var(--muted-foreground))]"
                 )}
               >
-                <div className={cn("p-1.5 rounded-lg", isActive ? "bg-[var(--active-bg)]" : "")}>
+                <div className={cn("p-1.5 rounded-lg relative", isActive ? "bg-[var(--active-bg)]" : "")}>
                   <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
+                  {to === "/upload" && inboxCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[8px] flex items-center justify-center rounded-full font-bold border-2 border-[var(--surface)]">
+                      {inboxCount}
+                    </span>
+                  )}
                 </div>
                 <span>{label}</span>
               </Link>

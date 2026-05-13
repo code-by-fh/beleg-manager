@@ -5,9 +5,13 @@ import { DashboardPage } from "@/pages/Dashboard";
 import { UploadPage } from "@/pages/Upload";
 import { ReviewPage } from "@/pages/Review";
 import { SettingsPage } from "@/pages/Settings";
+import { ReceiptsPage } from "@/pages/Receipts";
+import { SplitsPage } from "@/pages/Splits";
+import { KontoabgleichPage } from "@/pages/Kontoabgleich";
 import { AppShell } from "@/components/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/lib/theme";
 
 const qc = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } },
@@ -15,20 +19,25 @@ const qc = new QueryClient({
 
 export function App() {
   return (
-    <QueryClientProvider client={qc}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/upload" element={<UploadPage />} />
-            <Route path="/review/:pendingId" element={<ReviewPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={qc}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/receipts" element={<ReceiptsPage />} />
+              <Route path="/splits" element={<SplitsPage />} />
+              <Route path="/kontoabgleich" element={<KontoabgleichPage />} />
+              <Route path="/review/:pendingId" element={<ReviewPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
