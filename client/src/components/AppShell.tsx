@@ -96,7 +96,7 @@ export function AppShell() {
               <span className="hidden sm:inline">Neuer Beleg</span>
             </Link>
 
-            <button className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors relative">
+            <button aria-label="Benachrichtigungen" className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors relative">
               <Bell size={16} strokeWidth={1.5} />
               <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[hsl(var(--foreground))]" />
             </button>
@@ -116,7 +116,7 @@ export function AppShell() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto px-8 py-8">
+        <main className="flex-1 overflow-auto px-8 py-8 pb-24 md:pb-8">
           <Outlet />
         </main>
       </div>
@@ -136,6 +136,7 @@ export function AppShell() {
               <Link
                 key={to}
                 to={to}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
                   isActive
