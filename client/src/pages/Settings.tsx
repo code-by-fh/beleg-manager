@@ -1,171 +1,130 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useFactoryReset } from "@/hooks/useFactoryReset";
+import { User, AlertTriangle, LogOut } from "lucide-react";
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { execute, loading } = useFactoryReset();
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
-  const [resetOptions, setResetOptions] = useState({
-    localData: false,
-    googleDrive: false,
-  });
+  const [resetOptions, setResetOptions] = useState({ localData: false, googleDrive: false });
   const [confirmChecked, setConfirmChecked] = useState(false);
 
   const hasResetOptions = resetOptions.localData || resetOptions.googleDrive;
 
-  const handleResetStart = () => {
-    if (!hasResetOptions) return;
-    setResetDialogOpen(true);
-    setConfirmChecked(false);
-  };
-
-  const handleResetConfirm = async () => {
-    if (!confirmChecked || !hasResetOptions) return;
-    setResetDialogOpen(false);
-    await execute(resetOptions);
-  };
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-semibold">Einstellungen</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Konto</CardTitle>
-          <CardDescription>
-            Du bist angemeldet als <span className="font-medium">{user?.email}</span>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Beim ersten Login hat die App in deinem Drive den Ordner <code>Beleg-Manager/</code> mit
-            Unterordnern <code>Inbox/</code> und <code>Archive/</code> sowie das Sheet <code>belege</code> angelegt.
+    <div className="h-full overflow-auto">
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-5 pb-10">
+        <h1
+          className="text-2xl font-black gradient-text"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          Einstellungen
+        </h1>
+
+        {/* Account card */}
+        <div className="clay-card-static p-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center flex-shrink-0">
+              <User className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-foreground font-bold text-sm" style={{ fontFamily: "Nunito, sans-serif" }}>Konto</p>
+              <p className="text-muted-foreground text-xs font-medium">{user?.email}</p>
+            </div>
+          </div>
+          <p className="text-muted-foreground text-xs leading-relaxed border-t border-border/40 pt-3">
+            Beim ersten Login wurden{" "}
+            <code className="text-primary font-bold bg-primary/8 px-1.5 py-0.5 rounded-lg">Beleg-Manager/Inbox</code> und{" "}
+            <code className="text-primary font-bold bg-primary/8 px-1.5 py-0.5 rounded-lg">Archive/</code> sowie das Sheet{" "}
+            <code className="text-primary font-bold bg-primary/8 px-1.5 py-0.5 rounded-lg">belege</code> in deinem Drive angelegt.
             Belege im Inbox-Ordner werden alle 5 Minuten automatisch verarbeitet.
           </p>
-        </CardContent>
-      </Card>
+          <Button variant="ghost" size="sm" onClick={logout} className="w-full gap-2 text-sm">
+            <LogOut className="h-4 w-4" /> Abmelden
+          </Button>
+        </div>
 
-      {/* Danger Zone */}
-      <Card className="border-red-200 bg-red-50">
-        <CardHeader>
-          <CardTitle className="text-red-900">Gefahrenzone</CardTitle>
-          <CardDescription className="text-red-800">
-            Folgende Operationen können nicht rückgängig gemacht werden.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="reset-local"
-                checked={resetOptions.localData}
-                onCheckedChange={(checked: boolean) =>
-                  setResetOptions((prev) => ({ ...prev, localData: checked }))
-                }
-              />
-              <label
-                htmlFor="reset-local"
-                className="text-sm font-medium text-gray-900 cursor-pointer"
-              >
-                Lokale Daten löschen
-              </label>
+        {/* Danger zone */}
+        <div className="clay-card-static p-6 space-y-4 border-2 border-red-200/60 dark:border-red-500/20">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="h-6 w-6 text-white" />
             </div>
-            <p className="text-xs text-gray-600 ml-6">
-              Löscht die lokale Datenbank und alle Sessions
-            </p>
+            <div>
+              <p className="text-red-600 dark:text-red-400 font-bold text-sm" style={{ fontFamily: "Nunito, sans-serif" }}>Gefahrenzone</p>
+              <p className="text-red-500/70 dark:text-red-400/60 text-xs font-medium">Nicht rückgängig machbar</p>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="reset-google"
-                checked={resetOptions.googleDrive}
-                onCheckedChange={(checked: boolean) =>
-                  setResetOptions((prev) => ({ ...prev, googleDrive: checked }))
-                }
-              />
-              <label
-                htmlFor="reset-google"
-                className="text-sm font-medium text-gray-900 cursor-pointer"
-              >
-                Google Drive Daten löschen
+          <div className="space-y-3 border-t border-red-200/50 dark:border-red-500/15 pt-3">
+            {[
+              { id: "reset-local",  key: "localData",    label: "Lokale Daten löschen",       desc: "Löscht SQLite-DB und Sessions" },
+              { id: "reset-google", key: "googleDrive",  label: "Google Drive Daten löschen", desc: "Löscht Ordner und Sheet aus Drive" },
+            ].map(({ id, key, label, desc }) => (
+              <label key={id} htmlFor={id} className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  id={id}
+                  checked={resetOptions[key as keyof typeof resetOptions]}
+                  onCheckedChange={(v: boolean) => setResetOptions((p) => ({ ...p, [key]: v }))}
+                  className="mt-0.5 border-red-300 dark:border-red-500/40 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                />
+                <div>
+                  <p className="text-foreground text-sm font-bold">{label}</p>
+                  <p className="text-muted-foreground text-xs">{desc}</p>
+                </div>
               </label>
-            </div>
-            <p className="text-xs text-gray-600 ml-6">
-              Löscht den Beleg-Manager-Ordner und das Sheet aus deinem Google Drive
-            </p>
+            ))}
           </div>
 
           <Button
-            variant="destructive"
-            onClick={handleResetStart}
+            onClick={() => { setResetDialogOpen(true); setConfirmChecked(false); }}
             disabled={!hasResetOptions || loading}
-            className="mt-4"
+            className="w-full bg-gradient-to-br from-red-400 to-red-600 text-white rounded-[20px] h-14 font-bold"
           >
-            {loading ? "Wird verarbeitet..." : "Factory Reset starten"}
+            {loading ? "Wird verarbeitet…" : "Factory Reset starten"}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Confirmation Dialog */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-red-900">Factory Reset bestätigen</DialogTitle>
-            <DialogDescription className="text-red-800">
-              Folgende Daten werden gelöscht:
+            <DialogTitle
+              className="text-red-600 dark:text-red-400"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Factory Reset bestätigen
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Folgende Daten werden unwiderruflich gelöscht:
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-2 py-4">
-            {resetOptions.localData && (
-              <div className="text-sm">
-                • Lokale Daten (SQLite-DB und Sessions)
-              </div>
-            )}
-            {resetOptions.googleDrive && (
-              <div className="text-sm">
-                • Google Drive Beleg-Manager-Ordner<br/>
-                <span className="ml-4">- Ordner Archive/ und Inbox/</span><br/>
-                <span className="ml-4">- Sheet belege.xlsx</span>
-              </div>
-            )}
+          <div className="space-y-1.5 py-2 text-sm text-foreground/80">
+            {resetOptions.localData   && <p>• Lokale Daten (SQLite-DB + Sessions)</p>}
+            {resetOptions.googleDrive && <p>• Beleg-Manager Ordner + Sheet aus Google Drive</p>}
           </div>
-
-          <div className="flex items-center space-x-2 py-4 border-t">
+          <label htmlFor="confirm-understand" className="flex items-start gap-3 cursor-pointer py-3 border-t border-border/40">
             <Checkbox
               id="confirm-understand"
               checked={confirmChecked}
               onCheckedChange={setConfirmChecked}
+              className="mt-0.5 border-red-300 dark:border-red-500/40 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
             />
-            <label
-              htmlFor="confirm-understand"
-              className="text-sm text-gray-900 cursor-pointer"
-            >
-              Ich verstehe, dass dies nicht rückgängig gemacht werden kann
-            </label>
-          </div>
-
+            <span className="text-muted-foreground text-sm">Ich verstehe, dass dies nicht rückgängig gemacht werden kann</span>
+          </label>
           <div className="flex gap-3">
+            <Button variant="ghost" onClick={() => setResetDialogOpen(false)} className="flex-1">Abbrechen</Button>
             <Button
-              variant="outline"
-              onClick={() => setResetDialogOpen(false)}
-              disabled={loading}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleResetConfirm}
+              onClick={async () => { setResetDialogOpen(false); await execute(resetOptions); }}
               disabled={!confirmChecked || loading}
-              className="flex-1"
+              className="flex-1 bg-gradient-to-br from-red-400 to-red-600 text-white rounded-[20px] h-14 font-bold"
             >
-              {loading ? "Wird verarbeitet..." : "Bestätigen"}
+              Bestätigen
             </Button>
           </div>
         </DialogContent>
