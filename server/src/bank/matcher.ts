@@ -99,8 +99,10 @@ export function matchTransactions(
 function computeScore(tx: ParsedTransaction, receipt: ReceiptForMatching): number {
   let score = 0;
 
-  // Amount comparison — use absolute values because tx betrag is negative for debits
-  if (Math.abs(tx.betrag) === Math.abs(receipt.betrag)) {
+  // Amount comparison — use absolute values because tx betrag is negative for debits.
+  // Round to cents to avoid floating-point equality failures (e.g. 0.1 + 0.2 ≠ 0.3).
+  const roundCents = (n: number) => Math.round(Math.abs(n) * 100);
+  if (roundCents(tx.betrag) === roundCents(receipt.betrag)) {
     score += 50;
   }
 
@@ -116,10 +118,13 @@ function computeScore(tx: ParsedTransaction, receipt: ReceiptForMatching): numbe
   const normTx = normalizeHaendler(tx.haendler);
   const normReceipt = normalizeHaendler(receipt.haendler);
 
-  if (normTx === normReceipt) {
-    score += 20;
-  } else if (normTx.startsWith(normReceipt) || normReceipt.startsWith(normTx)) {
-    score += 10;
+  // Guard against empty strings — an empty normalized name must not match anything.
+  if (normTx.length > 0 && normReceipt.length > 0) {
+    if (normTx === normReceipt) {
+      score += 20;
+    } else if (normTx.startsWith(normReceipt) || normReceipt.startsWith(normTx)) {
+      score += 10;
+    }
   }
 
   return score;
@@ -144,7 +149,7 @@ function normalizeHaendler(s: string): string {
   return s
     .toLowerCase()
     .trim()
-    .replace(/\b(gmbh|ag|se|kg|kgaa|inc|ltd|co)\b/g, "")
+    .replace(/\b(gmbh|ag|se|kg|kgaa|inc|ltd)\b/g, "")
     .replace(/[^a-z0-9äöüß\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

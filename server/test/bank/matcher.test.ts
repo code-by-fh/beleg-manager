@@ -200,6 +200,48 @@ describe("matchTransactions", () => {
     }
   });
 
+  it("empty transactions array returns empty results", () => {
+    const receipts = [receipt({ betrag: 42.5 })];
+    const results = matchTransactions([], receipts);
+    expect(results).toHaveLength(0);
+    expect(results).toEqual([]);
+  });
+
+  it("transactionIndex in result corresponds to the original position in the input array", () => {
+    const transactions = [
+      tx({ betrag: -10.0, haendler: "ShopA", buchungsdatum: "2024-03-01" }),
+      tx({ betrag: -20.0, haendler: "ShopB", buchungsdatum: "2024-03-02" }),
+    ];
+    const receipts = [
+      receipt({ id: "rA", betrag: 10.0, haendler: "ShopA", datum: "2024-03-01" }),
+      receipt({ id: "rB", betrag: 20.0, haendler: "ShopB", datum: "2024-03-02" }),
+    ];
+
+    const results = matchTransactions(transactions, receipts);
+
+    expect(results).toHaveLength(2);
+    expect(results[0]!.transactionIndex).toBe(0);
+    expect(results[1]!.transactionIndex).toBe(1);
+  });
+
+  it("merchant name that normalizes to empty string ('GmbH') must not grant +20/+10 against an unrelated receipt", () => {
+    // "GmbH" normalizes to "" — the empty-string guard must prevent any merchant bonus.
+    const transactions = [
+      tx({ betrag: -42.5, buchungsdatum: "2024-03-15", haendler: "GmbH" }),
+    ];
+    const receipts = [
+      receipt({ betrag: 42.5, datum: "2024-03-15", haendler: "CompletelyUnrelated" }),
+    ];
+
+    const results = matchTransactions(transactions, receipts);
+    // Score must be exactly 50 (amount) + 30 (date diff 0) = 80, NOT 80+20=100.
+    // The empty normTx must not match against non-empty normReceipt.
+    expect(results[0]!.score).toBe(80);
+    // Merchant bonus must be absent: no +20 or +10
+    const merchantBonus = results[0]!.score - 80;
+    expect(merchantBonus).toBe(0);
+  });
+
   it("medium confidence at score 65", () => {
     // amount (50) + date diff 1 (30) = 80 → high; adjust to get 65
     // amount (50) + date diff 2 (15) = 65 → medium
