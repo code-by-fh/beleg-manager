@@ -10,7 +10,7 @@ import { buildOAuth2ClientFromSession } from "../google/client.js";
 import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { parseIngCsv } from "./csvParser.js";
 import { matchTransactions, type ReceiptForMatching } from "./matcher.js";
-import { createTransactionRepo } from "./transactionRepo.js";
+import { createTransactionRepo, NotFoundError } from "./transactionRepo.js";
 
 export type BankDeps = {
   config: Config;
@@ -33,9 +33,10 @@ const uploadCsv = multer({
   },
 }).single("file");
 
+// Fix 5: use z.string().min(1) so empty strings are rejected
 const MatchBody = z.object({
   transactionId: z.string().min(1),
-  receiptId: z.string().nullable(),
+  receiptId: z.string().min(1).nullable(),
 });
 
 const IgnoreBody = z.object({
@@ -48,61 +49,76 @@ export function buildBankRouter(deps: BankDeps): Router {
   router.use(requireAuth);
 
   // POST /api/bank/import
-  router.post("/import", uploadCsv, async (req, res, next) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: "file required" });
+  // Fix 2: catch multer errors and return 400 instead of 500
+  router.post(
+    "/import",
+    (req, res, next) => {
+      uploadCsv(req, res, (err: unknown) => {
+        if (err) return res.status(400).json({ error: err instanceof Error ? err.message : "Upload error" });
+        next();
+      });
+    },
+    async (req, res, next) => {
+      try {
+        if (!req.file) return res.status(400).json({ error: "file required" });
 
-      const csvText = req.file.buffer.toString("utf-8").replace(/^﻿/, "");
-      const { transactions, errors: parseErrors } = parseIngCsv(csvText);
+        const csvText = req.file.buffer.toString("utf-8").replace(/^﻿/, "");
+        const { transactions, errors: parseErrors } = parseIngCsv(csvText);
 
-      const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
+        const userId = req.session.userId!;
+        const user = deps.userRepo.getById(userId);
 
-      let receipts: ReceiptForMatching[] = [];
-      if (user?.sheetId) {
-        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-        const sheets = sheetsFor(auth);
-        const allRows = await readAllRows(sheets, user.sheetId);
-        receipts = allRows.map((r) => ({
-          id: r.id,
-          datum: r.datum,
-          haendler: r.haendler,
-          betrag: r.betrag,
-        }));
+        // Fix 4: wrap Sheets fetch in try/catch so import doesn't abort on Sheets error
+        let receipts: ReceiptForMatching[] = [];
+        if (user?.sheetId) {
+          try {
+            const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+            const sheets = sheetsFor(auth);
+            const rows = await readAllRows(sheets, user.sheetId);
+            receipts = rows.map((r) => ({
+              id: r.id,
+              datum: r.datum,
+              haendler: r.haendler,
+              betrag: r.betrag,
+            }));
+          } catch {
+            console.warn("[bank/import] Could not fetch receipts from Sheets, skipping auto-match");
+          }
+        }
+
+        const matchResults = matchTransactions(transactions, receipts);
+
+        const rows = transactions.map((tx, i) => {
+          const matchResult = matchResults[i];
+          const isMatched = matchResult?.confidence != null;
+          return {
+            id: uuidv4(),
+            buchungsdatum: tx.buchungsdatum,
+            betrag: tx.betrag,
+            haendler: tx.haendler,
+            verwendungszweck: tx.verwendungszweck,
+            matchStatus: (isMatched ? "matched" : "unmatched") as "matched" | "unmatched",
+            matchedReceiptId: matchResult?.matchedReceiptId ?? null,
+            matchConfidence: matchResult?.confidence ?? null,
+          };
+        });
+
+        txRepo.insertMany(userId, rows);
+
+        const autoMatched = rows.filter((r) => r.matchStatus === "matched").length;
+        const unmatched = rows.filter((r) => r.matchStatus === "unmatched").length;
+
+        res.json({
+          imported: rows.length,
+          autoMatched,
+          unmatched,
+          parseErrors,
+        });
+      } catch (err) {
+        next(err);
       }
-
-      const matchResults = matchTransactions(transactions, receipts);
-
-      const rows = transactions.map((tx, i) => {
-        const matchResult = matchResults[i];
-        const isMatched = matchResult?.confidence != null;
-        return {
-          id: uuidv4(),
-          buchungsdatum: tx.buchungsdatum,
-          betrag: tx.betrag,
-          haendler: tx.haendler,
-          verwendungszweck: tx.verwendungszweck,
-          matchStatus: (isMatched ? "matched" : "unmatched") as "matched" | "unmatched",
-          matchedReceiptId: matchResult?.matchedReceiptId ?? null,
-          matchConfidence: matchResult?.confidence ?? null,
-        };
-      });
-
-      txRepo.insertMany(userId, rows);
-
-      const autoMatched = rows.filter((r) => r.matchStatus === "matched").length;
-      const unmatched = rows.filter((r) => r.matchStatus === "unmatched").length;
-
-      res.json({
-        imported: rows.length,
-        autoMatched,
-        unmatched,
-        parseErrors,
-      });
-    } catch (err) {
-      next(err);
     }
-  });
+  );
 
   // GET /api/bank/transactions
   router.get("/transactions", (req, res, next) => {
@@ -124,10 +140,26 @@ export function buildBankRouter(deps: BankDeps): Router {
       const userId = req.session.userId!;
       const { transactionId, receiptId } = parsed.data;
 
+      // Fix 1: verify receipt ownership before updating the match
+      if (receiptId !== null) {
+        const user = deps.userRepo.getById(userId);
+        if (!user?.sheetId) {
+          return res.status(400).json({ error: "No Google Sheet configured for this user" });
+        }
+        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        const sheets = sheetsFor(auth);
+        const allRows = await readAllRows(sheets, user.sheetId);
+        const exists = allRows.some((r) => r.id === receiptId);
+        if (!exists) {
+          return res.status(404).json({ error: `Receipt ${receiptId} not found` });
+        }
+      }
+
       txRepo.updateMatch(transactionId, userId, receiptId, "manual");
       res.json({ ok: true });
     } catch (err) {
-      if (err instanceof Error && err.message.includes("not found")) {
+      // Fix 3: use typed NotFoundError instead of string matching
+      if (err instanceof NotFoundError) {
         return res.status(404).json({ error: err.message });
       }
       next(err);
@@ -144,7 +176,8 @@ export function buildBankRouter(deps: BankDeps): Router {
       txRepo.updateStatus(parsed.data.transactionId, userId, "ignored");
       res.json({ ok: true });
     } catch (err) {
-      if (err instanceof Error && err.message.includes("not found")) {
+      // Fix 3: use typed NotFoundError instead of string matching
+      if (err instanceof NotFoundError) {
         return res.status(404).json({ error: err.message });
       }
       next(err);

@@ -1,5 +1,7 @@
 import type { Db } from "../db/index.js";
 
+export class NotFoundError extends Error {}
+
 export type BankTransaction = {
   id: string;
   userId: string;
@@ -89,14 +91,14 @@ export function createTransactionRepo(db: Db) {
            SET match_status = 'unmatched', matched_receipt_id = NULL, match_confidence = NULL
            WHERE id = ? AND user_id = ?`
         ).run(id, userId);
-        if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
+        if (result.changes === 0) throw new NotFoundError(`Transaction ${id} not found or access denied`);
       } else {
         const result = db.prepare(
           `UPDATE bank_transactions
            SET match_status = 'matched', matched_receipt_id = @receiptId, match_confidence = @confidence
            WHERE id = @id AND user_id = @userId`
         ).run({ id, userId, receiptId, confidence });
-        if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
+        if (result.changes === 0) throw new NotFoundError(`Transaction ${id} not found or access denied`);
       }
     },
 
@@ -104,7 +106,7 @@ export function createTransactionRepo(db: Db) {
       const result = db.prepare(
         `UPDATE bank_transactions SET match_status = @status WHERE id = @id AND user_id = @userId`
       ).run({ id, userId, status });
-      if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
+      if (result.changes === 0) throw new NotFoundError(`Transaction ${id} not found or access denied`);
     },
 
     clearByUser(userId: string): number {

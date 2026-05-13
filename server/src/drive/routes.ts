@@ -37,6 +37,10 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       }));
       res.json({ files: enriched });
     } catch (err) {
+      console.error("[drive] inbox fetch failed:", err);
+      if ((err as any).code === 401 || (err as any).code === 403) {
+        return res.status((err as any).code).json({ error: "Google Drive Zugriff verweigert. Bitte erneut anmelden." });
+      }
       next(err);
     }
   });
