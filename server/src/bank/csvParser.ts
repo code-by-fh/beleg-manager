@@ -65,9 +65,9 @@ export function parseIngCsv(csvText: string): {
     const colIndex = {
       buchungstag: headers.indexOf("buchungstag"),
       haendler: findHeaderIndex(headers, [
-        "auftraggeber/empfänger",
-        "auftraggeber/empfänger",
-        "auftraggeber/empfanger",
+        "auftraggeber/empfänger",          // NFC precomposed ä (U+00E4)
+        "auftraggeber/empfänger",         // NFD a + combining diaeresis (U+0308)
+        "auftraggeber/empfanger",               // ASCII fallback
       ]),
       betrag: headers.indexOf("betrag"),
       verwendungszweck: headers.indexOf("verwendungszweck"),
@@ -189,10 +189,13 @@ function getField(fields: string[], index: number): string {
 
 /**
  * Return the index of the first header that matches any of the candidates.
+ * Headers are NFC-normalized before comparison so that precomposed and
+ * decomposed Unicode representations both match.
  */
 function findHeaderIndex(headers: string[], candidates: string[]): number {
+  const normalized = headers.map((h) => h.normalize("NFC"));
   for (const candidate of candidates) {
-    const idx = headers.indexOf(candidate);
+    const idx = normalized.indexOf(candidate.normalize("NFC"));
     if (idx !== -1) return idx;
   }
   return -1;
@@ -215,6 +218,10 @@ function parseDateDMY(raw: string): string | null {
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
   if (year < 1900 || year > 2200) return null;
+
+  // Cross-validate: catch impossible dates like 31.02.2024 that pass range checks
+  const d = new Date(`${yyyy}-${mm}-${dd}`);
+  if (isNaN(d.getTime()) || d.getUTCMonth() + 1 !== month) return null;
 
   return `${yyyy}-${mm}-${dd}`;
 }
