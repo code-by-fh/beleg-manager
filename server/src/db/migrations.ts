@@ -12,8 +12,40 @@ CREATE TABLE IF NOT EXISTS users (
   refresh_token TEXT,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS gmail_processed_messages (
+  message_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  processed_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL,
+  buchungsdatum      TEXT NOT NULL,
+  betrag             REAL NOT NULL,
+  haendler           TEXT NOT NULL,
+  verwendungszweck   TEXT NOT NULL DEFAULT '',
+  match_status       TEXT NOT NULL DEFAULT 'unmatched',
+  matched_receipt_id TEXT,
+  match_confidence   TEXT,
+  imported_at        INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_user
+  ON bank_transactions(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_tx_dedup
+  ON bank_transactions(user_id, buchungsdatum, betrag, haendler);
 `;
+
+function addColumnIfMissing(db: Db, table: string, column: string, def: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+  }
+}
 
 export function runMigrations(db: Db): void {
   db.exec(SCHEMA);
+  addColumnIfMissing(db, "users", "gmail_polling_enabled", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "users", "gmail_label_filter", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
 }
