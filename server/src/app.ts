@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import passport from "passport";
@@ -16,6 +17,10 @@ import { buildReceiptsRouter } from "./receipts/routes.js";
 import { buildStatsRouter } from "./stats/routes.js";
 import { buildDriveRouter } from "./drive/routes.js";
 import { buildAdminRouter } from "./admin/routes.js";
+import { buildSettingsRouter } from "./settings/routes.js";
+import { buildTelegramRouter } from "./telegram/bot.js";
+import { buildSplitsRouter } from "./splits/routes.js";
+import { buildBankRouter } from "./bank/routes.js";
 
 export type AppDeps = {
   config: Config;
@@ -31,6 +36,7 @@ export function createApp(deps: AppDeps): Express {
 
   const app = express();
   app.disable("x-powered-by");
+  app.use(cors({ origin: deps.config.clientOrigin, credentials: true }));
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
@@ -59,6 +65,15 @@ export function createApp(deps: AppDeps): Express {
     pending: deps.pending,
   }));
   app.use("/api/admin", buildAdminRouter(deps.config, userRepo, deps.db));
+  app.use("/api/settings", buildSettingsRouter(userRepo, deps.config));
+  app.use("/api/splits", buildSplitsRouter(deps.config, userRepo));
+  app.use("/api/bank", buildBankRouter({ config: deps.config, userRepo, db: deps.db }));
+  app.use("/api/telegram", buildTelegramRouter({
+    config: deps.config,
+    userRepo,
+    gemini: deps.gemini,
+    pending: deps.pending,
+  }));
 
   if (deps.config.nodeEnv === "production") {
     const here = path.dirname(url.fileURLToPath(import.meta.url));
