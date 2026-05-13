@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   verwendungszweck   TEXT NOT NULL DEFAULT '',
   match_status       TEXT NOT NULL DEFAULT 'unmatched' CHECK (match_status IN ('unmatched', 'matched', 'ignored')),
   matched_receipt_id TEXT,
-  match_confidence   TEXT,
+  match_confidence   TEXT CHECK (match_confidence IN ('high', 'medium', 'low', 'manual')),
   imported_at        INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

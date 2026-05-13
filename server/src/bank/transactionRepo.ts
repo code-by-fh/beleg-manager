@@ -43,7 +43,7 @@ function rowToTransaction(row: DbRow): BankTransaction {
 
 export function createTransactionRepo(db: Db) {
   return {
-    insertMany(rows: Omit<BankTransaction, "importedAt">[]): void {
+    insertMany(userId: string, rows: Omit<BankTransaction, "importedAt" | "userId">[]): void {
       const stmt = db.prepare(
         `INSERT OR IGNORE INTO bank_transactions
           (id, user_id, buchungsdatum, betrag, haendler, verwendungszweck,
@@ -54,9 +54,9 @@ export function createTransactionRepo(db: Db) {
       );
 
       const importedAt = Date.now();
-      const insertAll = db.transaction((items: Omit<BankTransaction, "importedAt">[]) => {
+      const insertAll = db.transaction((items: Omit<BankTransaction, "importedAt" | "userId">[]) => {
         for (const row of items) {
-          stmt.run({ ...row, importedAt });
+          stmt.run({ ...row, userId, importedAt });
         }
       });
 
@@ -84,24 +84,27 @@ export function createTransactionRepo(db: Db) {
       confidence: "high" | "medium" | "low" | "manual"
     ): void {
       if (receiptId === null) {
-        db.prepare(
+        const result = db.prepare(
           `UPDATE bank_transactions
            SET match_status = 'unmatched', matched_receipt_id = NULL, match_confidence = NULL
            WHERE id = ? AND user_id = ?`
         ).run(id, userId);
+        if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
       } else {
-        db.prepare(
+        const result = db.prepare(
           `UPDATE bank_transactions
            SET match_status = 'matched', matched_receipt_id = @receiptId, match_confidence = @confidence
            WHERE id = @id AND user_id = @userId`
         ).run({ id, userId, receiptId, confidence });
+        if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
       }
     },
 
     updateStatus(id: string, userId: string, status: "unmatched" | "matched" | "ignored"): void {
-      db.prepare(
+      const result = db.prepare(
         `UPDATE bank_transactions SET match_status = @status WHERE id = @id AND user_id = @userId`
       ).run({ id, userId, status });
+      if (result.changes === 0) throw new Error(`Transaction ${id} not found or access denied`);
     },
 
     clearByUser(userId: string): number {
