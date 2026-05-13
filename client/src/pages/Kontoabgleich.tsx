@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Table,
@@ -77,6 +77,7 @@ export function KontoabgleichPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [busyClear, setBusyClear] = useState(false);
   const [busyTx, setBusyTx] = useState<string | null>(null); // id of tx being acted on
+  const [lastImportErrors, setLastImportErrors] = useState<string[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bank-transactions"],
@@ -88,6 +89,11 @@ export function KontoabgleichPage() {
   const matched   = transactions.filter((t) => t.matchStatus === "matched");
   const ignored   = transactions.filter((t) => t.matchStatus === "ignored");
 
+  const alreadyMatchedIds = useMemo(
+    () => new Set(transactions.filter(t => t.matchedReceiptId).map(t => t.matchedReceiptId!)),
+    [transactions]
+  );
+
   // ── CSV upload ──────────────────────────────────────────────────────────────
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -97,6 +103,7 @@ export function KontoabgleichPage() {
     try {
       const result = await bankApi.importCsv(file);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      setLastImportErrors(result.parseErrors);
       toast({
         title: `${result.imported} Transaktionen importiert`,
         description: `${result.autoMatched} automatisch abgeglichen · ${result.unmatched} offen${
@@ -170,7 +177,7 @@ export function KontoabgleichPage() {
       </div>
 
       {/* CSV Upload */}
-      <div>
+      <div className="space-y-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -190,6 +197,19 @@ export function KontoabgleichPage() {
           </span>
           <span className="text-xs opacity-60">Unterstützt Sparkasse, DKB, Commerzbank u.a.</span>
         </button>
+        {lastImportErrors.length > 0 && (
+          <div className="text-sm text-red-600 space-y-1">
+            <p className="font-medium">{lastImportErrors.length} Zeile(n) konnten nicht verarbeitet werden:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              {lastImportErrors.slice(0, 5).map((err, i) => (
+                <li key={i} className="text-red-500">{err}</li>
+              ))}
+              {lastImportErrors.length > 5 && (
+                <li className="text-muted-foreground">… und {lastImportErrors.length - 5} weitere</li>
+              )}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Stats bar */}
@@ -236,13 +256,12 @@ export function KontoabgleichPage() {
                     <TableHead>Händler</TableHead>
                     <TableHead className="text-right">Betrag</TableHead>
                     <TableHead className="max-w-[200px]">Verwendungszweck</TableHead>
-                    <TableHead>Konfidenz</TableHead>
                     <TableHead className="text-right">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {unmatched.length === 0 ? (
-                    <EmptyRow colSpan={6} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
+                    <EmptyRow colSpan={5} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
                   ) : (
                     unmatched.map((tx) => (
                       <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border">
@@ -252,7 +271,6 @@ export function KontoabgleichPage() {
                         <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={tx.verwendungszweck}>
                           {tx.verwendungszweck}
                         </TableCell>
-                        <TableCell>—</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button
@@ -383,6 +401,7 @@ export function KontoabgleichPage() {
           setAssignTx(null);
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
         }}
+        alreadyMatchedReceiptIds={alreadyMatchedIds}
       />
 
       {/* Confirm clear dialog */}
@@ -392,6 +411,11 @@ export function KontoabgleichPage() {
             <DialogTitle>Abgleich abschließen</DialogTitle>
             <DialogDescription>
               Alle <span className="font-bold text-foreground">{transactions.length}</span> Transaktionen werden unwiderruflich gelöscht. Fortfahren?
+              {unmatched.length > 0 && (
+                <p className="text-amber-600 text-sm mt-1">
+                  Davon sind {unmatched.length} Transaktion(en) noch nicht zugeordnet.
+                </p>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">

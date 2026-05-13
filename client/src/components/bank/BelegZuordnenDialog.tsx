@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -23,13 +23,18 @@ type Props = {
   transaction: BankTransaction | null;
   onClose: () => void;
   onAssigned: () => void;
+  alreadyMatchedReceiptIds: Set<string>;
 };
 
-export function BelegZuordnenDialog({ transaction, onClose, onAssigned }: Props) {
+export function BelegZuordnenDialog({ transaction, onClose, onAssigned, alreadyMatchedReceiptIds }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (transaction) setSearch("");
+  }, [transaction?.id]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["receipts"],
@@ -38,11 +43,11 @@ export function BelegZuordnenDialog({ transaction, onClose, onAssigned }: Props)
   });
 
   const filtered = useMemo(() => {
-    const rows = data?.rows ?? [];
+    const rows = (data?.rows ?? []).filter((r) => !alreadyMatchedReceiptIds.has(r.id));
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
     return rows.filter((r) => r.haendler.toLowerCase().includes(q));
-  }, [data, search]);
+  }, [data, search, alreadyMatchedReceiptIds]);
 
   async function handleAssign(receiptId: string) {
     if (!transaction) return;
