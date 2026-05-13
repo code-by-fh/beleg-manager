@@ -29,11 +29,11 @@ export function SettingsPage() {
         {/* Account card */}
         <div className="clay-card-static p-6 space-y-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center flex-shrink-0">
-              <User className="h-6 w-6 text-white" />
+            <div className="w-12 h-12 rounded-2xl bg-[var(--active-bg)] flex items-center justify-center flex-shrink-0">
+              <User className="h-6 w-6 text-[hsl(var(--foreground))]" />
             </div>
             <div>
-              <p className="text-foreground font-bold text-sm" style={{ fontFamily: "Nunito, sans-serif" }}>Konto</p>
+              <p className="text-foreground font-bold text-sm">Konto</p>
               <p className="text-muted-foreground text-xs font-medium">{user?.email}</p>
             </div>
           </div>
@@ -56,7 +56,7 @@ export function SettingsPage() {
               <AlertTriangle className="h-6 w-6 text-white" />
             </div>
             <div>
-              <p className="text-red-600 dark:text-red-400 font-bold text-sm" style={{ fontFamily: "Nunito, sans-serif" }}>Gefahrenzone</p>
+              <p className="text-red-600 dark:text-red-400 font-bold text-sm">Gefahrenzone</p>
               <p className="text-red-500/70 dark:text-red-400/60 text-xs font-medium">Nicht rückgängig machbar</p>
             </div>
           </div>
