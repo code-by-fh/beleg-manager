@@ -15,6 +15,7 @@ export type ReceiptRow = {
   haendler: string;
   betrag: number;
   mwst: number;
+  trinkgeld: number;
   waehrung: string;
   kategorie: string;
   zahlungsmethode: string;
@@ -42,9 +43,13 @@ export type DriveInboxFile = {
 
 export type StatsSummary = {
   monthTotal: number;
+  prevMonthTotal: number;
   yearTotal: number;
   count: number;
   topCategory: string | null;
+  avgPerReceipt: number;
+  mwstYear: number;
+  maxBetrag: number;
 };
 
 export type MonthlyPoint = { ym: string; total: number };
