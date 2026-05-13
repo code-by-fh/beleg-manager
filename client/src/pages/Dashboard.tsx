@@ -2,6 +2,9 @@ import { Link } from "react-router-dom";
 import { KpiCards } from "@/components/stats/KpiCards";
 import { MonthlyChart } from "@/components/stats/MonthlyChart";
 import { CategoryDonut } from "@/components/stats/CategoryDonut";
+import { TopMerchantsChart } from "@/components/stats/TopMerchantsChart";
+import { PaymentMethodsChart } from "@/components/stats/PaymentMethodsChart";
+import { WeekdayChart } from "@/components/stats/WeekdayChart";
 import { ReceiptTable } from "@/components/receipts/ReceiptTable";
 
 export function DashboardPage() {
@@ -55,6 +58,35 @@ export function DashboardPage() {
             <div className="h-[220px]">
               <MonthlyChart />
             </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Second Row: 3 additional charts */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        {/* Top Merchants */}
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-6 shadow-[var(--card-shadow)]">
+          <h2 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-5">Top-Händler</h2>
+          <div className="h-[220px]">
+            <TopMerchantsChart />
+          </div>
+        </div>
+
+        {/* Payment Methods */}
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-6 shadow-[var(--card-shadow)]">
+          <h2 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-5">Zahlungsmethoden</h2>
+          <div className="h-[220px]">
+            <PaymentMethodsChart />
+          </div>
+        </div>
+
+        {/* Weekday Spending */}
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-6 shadow-[var(--card-shadow)]">
+          <h2 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-5">Ausgaben nach Wochentag</h2>
+          <div className="h-[220px]">
+            <WeekdayChart />
           </div>
         </div>
 

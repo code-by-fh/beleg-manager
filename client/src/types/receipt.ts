@@ -54,3 +54,5 @@ export type StatsSummary = {
 
 export type MonthlyPoint = { ym: string; total: number };
 export type CategoryBucket = { kategorie: string; total: number };
+export type TopMerchantBucket = { haendler: string; total: number };
+export type PaymentMethodBucket = { methode: string; total: number; count: number };

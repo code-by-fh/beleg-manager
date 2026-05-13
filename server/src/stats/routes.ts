@@ -4,7 +4,7 @@ import type { UserRepo } from "../auth/userRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientFromSession } from "../google/client.js";
 import { sheetsFor, readAllRows } from "../google/sheets.js";
-import { computeSummary, computeMonthly, computeCategories } from "./compute.js";
+import { computeSummary, computeMonthly, computeCategories, computeTopMerchants, computePaymentMethods } from "./compute.js";
 
 export function buildStatsRouter(config: Config, userRepo: UserRepo) {
   const router = Router();
@@ -27,6 +27,12 @@ export function buildStatsRouter(config: Config, userRepo: UserRepo) {
   });
   router.get("/categories", async (req, res, next) => {
     try { res.json(computeCategories(await loadRows(req))); } catch (e) { next(e); }
+  });
+  router.get("/top-merchants", async (req, res, next) => {
+    try { res.json(computeTopMerchants(await loadRows(req))); } catch (e) { next(e); }
+  });
+  router.get("/payment-methods", async (req, res, next) => {
+    try { res.json(computePaymentMethods(await loadRows(req))); } catch (e) { next(e); }
   });
 
   return router;
