@@ -4,30 +4,145 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
+    --background:             0 0% 96%;    /* #F5F5F5 */
+    --foreground:             0 0% 10%;    /* #1A1A1A */
+    --card:                   0 0% 100%;
+    --card-foreground:        0 0% 10%;
+    --popover:                0 0% 100%;
+    --popover-foreground:     0 0% 10%;
+    --primary:                0 0% 10%;    /* #1A1A1A */
+    --primary-foreground:     0 0% 100%;
+    --secondary:              0 0% 96%;
+    --secondary-foreground:   0 0% 10%;
+    --muted:                  0 0% 96%;
+    --muted-foreground:       0 0% 53%;    /* #888888 */
+    --accent:                 0 0% 10%;
+    --accent-foreground:      0 0% 100%;
+    --destructive:            0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
+    --border:                 0 0% 90%;    /* #E5E5E5 */
+    --input:                  0 0% 90%;
+    --ring:                   0 0% 10%;
+    --radius:                 0.75rem;
+
+    --surface:    #FFFFFF;
+    --hover-bg:   #F8F8F8;
+    --active-bg:  #F0F0F0;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .dark {
+    --background:             0 0% 7%;     /* #111111 */
+    --foreground:             0 0% 94%;    /* #F0F0F0 */
+    --card:                   0 0% 11%;    /* #1C1C1C */
+    --card-foreground:        0 0% 94%;
+    --popover:                0 0% 11%;
+    --popover-foreground:     0 0% 94%;
+    --primary:                0 0% 94%;
+    --primary-foreground:     0 0% 7%;
+    --secondary:              0 0% 16%;
+    --secondary-foreground:   0 0% 94%;
+    --muted:                  0 0% 16%;
+    --muted-foreground:       0 0% 44%;    /* #707070 */
+    --accent:                 0 0% 94%;
+    --accent-foreground:      0 0% 7%;
+    --destructive:            0 65% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border:                 0 0% 16%;    /* #2A2A2A */
+    --input:                  0 0% 16%;
+    --ring:                   0 0% 94%;
+
+    --surface:    #1C1C1C;
+    --hover-bg:   #252525;
+    --active-bg:  #2E2E2E;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+
+  * { @apply border-border; }
+
+  html {
+    scroll-behavior: smooth;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100%;
+    overflow: hidden;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
   }
 }
 
-@layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+@layer utilities {
+  /* Flat card — replaces clay-card and clay-card-static */
+  .clay-card,
+  .clay-card-static {
+    background: var(--surface);
+    border: 1px solid hsl(var(--border));
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+  }
+
+  /* Minimal input — replaces clay-input */
+  .clay-input {
+    background: hsl(var(--input));
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    color: hsl(var(--foreground));
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+    outline: none;
+    box-shadow: none !important;
+  }
+
+  .clay-input::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+
+  .clay-input:focus-visible,
+  .clay-input:focus {
+    border-color: hsl(var(--foreground));
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.06) !important;
+  }
+
+  /* Font helpers — point to DM Sans */
+  .clay-heading  { font-family: 'DM Sans', sans-serif; }
+  .font-display  { font-family: 'DM Sans', sans-serif; }
+
+  /* gradient-text → plain bold foreground */
+  .gradient-text {
+    color: hsl(var(--foreground));
+    font-weight: 700;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: hsl(var(--foreground));
+    background-clip: unset;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .h-screen-safe { height: 100dvh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition-duration: 1ms !important; }
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
 }
