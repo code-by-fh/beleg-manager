@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   betrag             REAL NOT NULL,
   haendler           TEXT NOT NULL,
   verwendungszweck   TEXT NOT NULL DEFAULT '',
-  match_status       TEXT NOT NULL DEFAULT 'unmatched',
+  match_status       TEXT NOT NULL DEFAULT 'unmatched' CHECK (match_status IN ('unmatched', 'matched', 'ignored')),
   matched_receipt_id TEXT,
   match_confidence   TEXT,
   imported_at        INTEGER NOT NULL,
@@ -34,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_bank_transactions_user
   ON bank_transactions(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_tx_dedup
   ON bank_transactions(user_id, buchungsdatum, betrag, haendler);
+CREATE INDEX IF NOT EXISTS idx_bank_tx_receipt
+  ON bank_transactions(matched_receipt_id);
 `;
 
 function addColumnIfMissing(db: Db, table: string, column: string, def: string) {
