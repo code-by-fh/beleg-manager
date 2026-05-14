@@ -501,7 +501,7 @@ export function KontoabgleichPage() {
                 ["Kategorie", viewReceipt.kategorie],
                 ["Zahlungsmethode", viewReceipt.zahlungsmethode],
                 viewReceipt.rechnungsnummer ? ["Rechnungsnummer", viewReceipt.rechnungsnummer] : null,
-              ].filter(Boolean).map(([label, value]) => (
+              ].filter((row): row is string[] => row !== null).map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4">
                   <span className="text-muted-foreground">{label}</span>
                   <span className="font-medium text-right">{value}</span>
