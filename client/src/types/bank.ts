@@ -15,6 +15,5 @@ export type ImportResult = {
   imported: number;
   autoMatched: number;
   unmatched: number;
-  splitAutoLinked: number;
   parseErrors: string[];
 };

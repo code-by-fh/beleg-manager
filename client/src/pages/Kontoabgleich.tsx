@@ -123,7 +123,6 @@ export function KontoabgleichPage() {
         title: `${result.imported} Transaktionen importiert`,
         description: [
           `${result.autoMatched} Belege abgeglichen`,
-          result.splitAutoLinked > 0 ? `${result.splitAutoLinked} Aufteilungen ausgeglichen` : "",
           `${result.unmatched} offen`,
           result.parseErrors.length > 0 ? `${result.parseErrors.length} Fehler` : "",
         ].filter(Boolean).join(" · "),

@@ -7,7 +7,7 @@ import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { sheetsFor, readAllRows, readSplits } from "../google/sheets.js";
+import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { parseIngCsv } from "./csvParser.js";
 import { matchTransactions, type ReceiptForMatching } from "./matcher.js";
 import { createTransactionRepo, NotFoundError } from "./transactionRepo.js";
@@ -110,45 +110,6 @@ export function buildBankRouter(deps: BankDeps): Router {
 
         txRepo.insertMany(userId, rows);
 
-        // Auto-link positive transactions (incoming payments) to open splits
-        let splitAutoLinked = 0;
-        if (user?.sheetId) {
-          try {
-            const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-            const sheets = sheetsFor(auth);
-            const splits = await readSplits(sheets, user.sheetId);
-            const existingLinks = deps.db
-              .prepare("SELECT split_id FROM split_bank_links WHERE user_id = ?")
-              .all(userId) as Array<{ split_id: string }>;
-            const linkedSplitIds = new Set(existingLinks.map((r) => r.split_id));
-            const openSplits = splits.filter((s) => !s.beglichen && !linkedSplitIds.has(s.splitId));
-
-            // All positive user transactions (incoming payments = possible repayments)
-            const allPositiveTxs = txRepo
-              .listByUser(userId)
-              .filter((t) => t.betrag > 0 && t.matchStatus !== "ignored");
-
-            const usedTxIds = new Set<string>();
-            const insertLink = deps.db.prepare(
-              "INSERT OR IGNORE INTO split_bank_links (split_id, user_id, bank_tx_id, created_at) VALUES (?, ?, ?, ?)"
-            );
-            for (const split of openSplits) {
-              const match = allPositiveTxs.find(
-                (tx) =>
-                  !usedTxIds.has(tx.id) &&
-                  Math.round(Math.abs(tx.betrag) * 100) === Math.round(split.betrag * 100)
-              );
-              if (match) {
-                insertLink.run(split.splitId, userId, match.id, Date.now());
-                usedTxIds.add(match.id);
-                splitAutoLinked++;
-              }
-            }
-          } catch {
-            // Don't block import if split matching fails
-          }
-        }
-
         const autoMatched = rows.filter((r) => r.matchStatus === "matched").length;
         const unmatched = rows.filter((r) => r.matchStatus === "unmatched").length;
 
@@ -156,7 +117,6 @@ export function buildBankRouter(deps: BankDeps): Router {
           imported: rows.length,
           autoMatched,
           unmatched,
-          splitAutoLinked,
           parseErrors,
         });
       } catch (err) {

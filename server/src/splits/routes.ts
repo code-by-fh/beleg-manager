@@ -88,40 +88,6 @@ export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
 
       await Promise.all(rows.map((row) => appendSplit(sheets, user.sheetId!, row)));
 
-      // Auto-match new splits against existing positive bank transactions
-      const userId = req.session.userId!;
-      try {
-        const positiveTxs = db
-          .prepare(
-            "SELECT id, betrag FROM bank_transactions WHERE user_id = ? AND betrag > 0 AND match_status != 'ignored'"
-          )
-          .all(userId) as Array<{ id: string; betrag: number }>;
-
-        if (positiveTxs.length > 0) {
-          const existingLinks = db
-            .prepare("SELECT bank_tx_id FROM split_bank_links WHERE user_id = ?")
-            .all(userId) as Array<{ bank_tx_id: string }>;
-          const usedTxIds = new Set(existingLinks.map((r) => r.bank_tx_id));
-
-          const insertLink = db.prepare(
-            "INSERT OR IGNORE INTO split_bank_links (split_id, user_id, bank_tx_id, created_at) VALUES (?, ?, ?, ?)"
-          );
-          for (const row of rows) {
-            const match = positiveTxs.find(
-              (tx) =>
-                !usedTxIds.has(tx.id) &&
-                Math.round(Math.abs(tx.betrag) * 100) === Math.round(row.betrag * 100)
-            );
-            if (match) {
-              insertLink.run(row.splitId, userId, match.id, Date.now());
-              usedTxIds.add(match.id);
-            }
-          }
-        }
-      } catch {
-        // Don't block split creation if auto-match fails
-      }
-
       res.json({ ok: true, splits: rows });
     } catch (err) {
       next(err);
