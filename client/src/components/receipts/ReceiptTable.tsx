@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2 } from "lucide-react";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
@@ -16,6 +16,7 @@ import { receiptsApi } from "@/api/receipts";
 import { splitsApi } from "@/api/splits";
 import { bankApi } from "@/api/bank";
 import { useToast } from "@/components/ui/use-toast";
+import { KontobewegungZuordnenDialog } from "@/components/bank/KontobewegungZuordnenDialog";
 import type { ReceiptRow } from "@/types/receipt";
 
 interface ReceiptTableProps {
@@ -86,6 +87,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const [editRow, setEditRow] = useState<ReceiptRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<ReceiptRow | null>(null);
   const [splitRow, setSplitRow] = useState<ReceiptRow | null>(null);
+  const [linkTxRow, setLinkTxRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ column: keyof ReceiptRow; direction: "asc" | "desc" }>({
     column: "datum",
@@ -247,7 +249,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                       <Button variant="ghost" size="icon" onClick={() => setDeleteRow(r)} aria-label="Löschen" className="text-destructive hover:text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                      {matchedReceiptTxMap.has(r.id) && (
+                      {matchedReceiptTxMap.has(r.id) ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -257,6 +259,16 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                           onClick={() => navigate("/kontoabgleich?tab=matched")}
                         >
                           <ArrowLeftRight className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Kontobewegung zuordnen"
+                          aria-label="Kontobewegung zuordnen"
+                          onClick={() => setLinkTxRow(r)}
+                        >
+                          <Link2 className="h-4 w-4" />
                         </Button>
                       )}
                       {r.driveLink && (
@@ -320,6 +332,14 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
         </DialogContent>
       </Dialog>
       <SplitDialog receipt={splitRow} allSplits={allSplits} knownPersons={knownPersons} onClose={() => setSplitRow(null)} />
+      <KontobewegungZuordnenDialog
+        receipt={linkTxRow}
+        onClose={() => setLinkTxRow(null)}
+        onAssigned={() => {
+          setLinkTxRow(null);
+          qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+        }}
+      />
     </>
   );
 }
