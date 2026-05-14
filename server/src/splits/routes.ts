@@ -34,15 +34,25 @@ export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
       const sheets = sheetsFor(auth);
       const splits = await readSplits(sheets, user.sheetId);
 
-      // Enrich with linked bank tx from SQLite
-      const links = db
+      // Manual links stored in split_bank_links
+      const manualLinks = db
         .prepare("SELECT split_id, bank_tx_id FROM split_bank_links WHERE user_id = ?")
         .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
-      const linkMap = new Map(links.map((l) => [l.split_id, l.bank_tx_id]));
+      const manualLinkMap = new Map(manualLinks.map((l) => [l.split_id, l.bank_tx_id]));
+
+      // Auto-derive: if a split's receipt is already matched to a bank tx,
+      // that tx counts as the split's linked transaction too.
+      const receiptLinks = db
+        .prepare(
+          "SELECT matched_receipt_id, id FROM bank_transactions WHERE user_id = ? AND matched_receipt_id IS NOT NULL AND match_status = 'matched'"
+        )
+        .all(userId) as Array<{ matched_receipt_id: string; id: string }>;
+      const receiptToBankTx = new Map(receiptLinks.map((r) => [r.matched_receipt_id, r.id]));
 
       const enriched = splits.map((s) => ({
         ...s,
-        linkedBankTxId: linkMap.get(s.splitId) ?? null,
+        linkedBankTxId:
+          manualLinkMap.get(s.splitId) ?? receiptToBankTx.get(s.receiptId) ?? null,
       }));
 
       res.json({ splits: enriched });
