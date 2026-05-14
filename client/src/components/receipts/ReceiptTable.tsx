@@ -338,6 +338,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
         onAssigned={() => {
           setLinkTxRow(null);
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+          qc.invalidateQueries({ queryKey: ["splits"] });
         }}
       />
     </>

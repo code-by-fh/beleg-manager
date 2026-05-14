@@ -118,6 +118,7 @@ export function KontoabgleichPage() {
     try {
       const result = await bankApi.importCsv(file);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["splits"] });
       setLastImportErrors(result.parseErrors);
       toast({
         title: `${result.imported} Transaktionen importiert`,
@@ -159,6 +160,7 @@ export function KontoabgleichPage() {
     try {
       await bankApi.matchTransaction(tx.id, null);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["splits"] });
       toast({ title: "Zuordnung aufgehoben" });
     } catch {
       toast({ title: "Fehler", variant: "destructive" });
@@ -174,6 +176,7 @@ export function KontoabgleichPage() {
     try {
       const res = await bankApi.clearTransactions();
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["splits"] });
       toast({ title: `${res.deleted} Transaktionen gelöscht` });
       setConfirmClear(false);
     } catch {
@@ -445,6 +448,7 @@ export function KontoabgleichPage() {
         onAssigned={() => {
           setAssignTx(null);
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+          qc.invalidateQueries({ queryKey: ["splits"] });
         }}
         alreadyMatchedReceiptIds={alreadyMatchedIds}
       />
