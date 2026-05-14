@@ -62,7 +62,12 @@ export function buildBankRouter(deps: BankDeps): Router {
       try {
         if (!req.file) return res.status(400).json({ error: "file required" });
 
-        const csvText = req.file.buffer.toString("utf-8").replace(/^﻿/, "");
+        // ING CSV is Windows-1252 encoded. Detect UTF-8 BOM; otherwise use latin1.
+        const buf = req.file.buffer;
+        const csvText =
+          buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf
+            ? buf.slice(3).toString("utf-8")
+            : buf.toString("latin1");
         const { transactions, errors: parseErrors } = parseIngCsv(csvText);
 
         const userId = req.session.userId!;
