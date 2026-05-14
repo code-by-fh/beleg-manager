@@ -41,6 +41,8 @@ export type DriveInboxFile = {
   extracted: Extraction | null;
 };
 
+export type SplitStatus = "offen" | "angefordert" | "unterwegs" | "ohne_verrechnung";
+
 export type SplitRow = {
   splitId: string;
   receiptId: string;
@@ -52,7 +54,9 @@ export type SplitRow = {
   betrag: number;
   beglichen: boolean;
   erstelltAm: string;
+  status: SplitStatus;
   linkedBankTxId: string | null;
+  linkedBankTxSource: "manual" | "receipt" | null;
 };
 
 export type StatsSummary = {

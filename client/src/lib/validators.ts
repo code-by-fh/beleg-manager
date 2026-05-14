@@ -5,6 +5,7 @@ export const ReceiptFormZ = z.object({
   haendler: z.string().min(1, "Pflichtfeld"),
   betrag: z.coerce.number().nonnegative("Muss ≥ 0 sein"),
   mwst: z.coerce.number().nonnegative("Muss ≥ 0 sein"),
+  trinkgeld: z.coerce.number().nonnegative("Muss ≥ 0 sein").default(0),
   waehrung: z.string().min(1, "Pflichtfeld"),
   kategorie: z.string().min(1, "Pflichtfeld"),
   zahlungsmethode: z.string().min(1, "Pflichtfeld"),

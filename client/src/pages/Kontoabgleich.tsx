@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Upload } from "lucide-react";
+import { Upload, ExternalLink } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { receiptsApi } from "@/api/receipts";
 import { useToast } from "@/components/ui/use-toast";
@@ -77,7 +77,9 @@ export function KontoabgleichPage() {
   const [searchParams] = useSearchParams();
 
   const [importing, setImporting] = useState(false);
+  const [autoMatching, setAutoMatching] = useState(false);
   const [assignTx, setAssignTx] = useState<BankTransaction | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<ReceiptRow | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [busyClear, setBusyClear] = useState(false);
   const [busyTx, setBusyTx] = useState<string | null>(null); // id of tx being acted on
@@ -166,6 +168,31 @@ export function KontoabgleichPage() {
       toast({ title: "Fehler", variant: "destructive" });
     } finally {
       setBusyTx(null);
+    }
+  }
+
+  // ── Auto-match ───────────────────────────────────────────────────────────────
+
+  async function handleAutoMatch() {
+    setAutoMatching(true);
+    try {
+      const [txResult, splitResult] = await Promise.all([
+        bankApi.autoMatch(),
+        bankApi.autoMatchSplits(),
+      ]);
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      qc.invalidateQueries({ queryKey: ["splits"] });
+      const parts = [];
+      if (txResult.matched > 0) parts.push(`${txResult.matched} Ausgabe${txResult.matched !== 1 ? "n" : ""} abgeglichen`);
+      if (splitResult.matched > 0) parts.push(`${splitResult.matched} Rückzahlung${splitResult.matched !== 1 ? "en" : ""} zugeordnet`);
+      toast({
+        title: parts.length > 0 ? parts.join(" · ") : "Keine neuen Übereinstimmungen",
+        description: parts.length > 0 ? undefined : "Alle Transaktionen sind bereits abgeglichen oder kein Beleg passt.",
+      });
+    } catch {
+      toast({ title: "Auto-Abgleich fehlgeschlagen", variant: "destructive" });
+    } finally {
+      setAutoMatching(false);
     }
   }
 
@@ -343,17 +370,27 @@ export function KontoabgleichPage() {
                       return (
                         <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border">
                           <TableCell className="text-muted-foreground">{formatDateIso(tx.buchungsdatum)}</TableCell>
-                          <TableCell className="font-medium">{tx.haendler}</TableCell>
+                          <TableCell>
+                            <div className="font-medium leading-tight">{tx.haendler}</div>
+                            {tx.verwendungszweck && (
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={tx.verwendungszweck}>
+                                {tx.verwendungszweck}
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right"><BetragCell betrag={tx.betrag} /></TableCell>
                           <TableCell><ConfidenceBadge confidence={tx.matchConfidence} /></TableCell>
                           <TableCell>
                             {receipt ? (
-                              <span className="text-sm">
-                                <span className="font-medium">{receipt.haendler}</span>
+                              <button
+                                className="text-left hover:underline"
+                                onClick={() => setViewReceipt(receipt)}
+                              >
+                                <span className="font-medium text-sm">{receipt.haendler}</span>
                                 <span className="text-muted-foreground text-xs ml-1.5">
                                   {formatDateIso(receipt.datum)} · {formatCurrency(receipt.betrag, receipt.waehrung)}
                                 </span>
-                              </span>
+                              </button>
                             ) : (
                               <span className="text-muted-foreground text-xs">—</span>
                             )}
@@ -432,14 +469,62 @@ export function KontoabgleichPage() {
         </Tabs>
       )}
 
-      {/* Abgleich abschließen */}
+      {/* Actions */}
       {transactions.length > 0 && (
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-between items-center pt-2">
+          <Button
+            variant="outline"
+            onClick={handleAutoMatch}
+            disabled={autoMatching || unmatched.length === 0}
+          >
+            {autoMatching ? "Wird abgeglichen…" : "Auto-Abgleich"}
+          </Button>
           <Button variant="destructive" onClick={() => setConfirmClear(true)}>
             Abgleich abschließen
           </Button>
         </div>
       )}
+
+      {/* Beleg-Detailmodal */}
+      <Dialog open={viewReceipt !== null} onOpenChange={(open) => { if (!open) setViewReceipt(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{viewReceipt?.haendler}</DialogTitle>
+            <DialogDescription>{viewReceipt && formatDateIso(viewReceipt.datum)}</DialogDescription>
+          </DialogHeader>
+          {viewReceipt && (
+            <div className="space-y-2 text-sm">
+              {[
+                ["Betrag", formatCurrency(viewReceipt.betrag, viewReceipt.waehrung)],
+                ["MwSt", formatCurrency(viewReceipt.mwst, viewReceipt.waehrung)],
+                viewReceipt.trinkgeld > 0 ? ["Trinkgeld", formatCurrency(viewReceipt.trinkgeld, viewReceipt.waehrung)] : null,
+                ["Kategorie", viewReceipt.kategorie],
+                ["Zahlungsmethode", viewReceipt.zahlungsmethode],
+                viewReceipt.rechnungsnummer ? ["Rechnungsnummer", viewReceipt.rechnungsnummer] : null,
+              ].filter(Boolean).map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium text-right">{value}</span>
+                </div>
+              ))}
+              {viewReceipt.driveLink && (
+                <a
+                  href={viewReceipt.driveLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-primary hover:underline pt-1"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Beleg in Drive öffnen
+                </a>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setViewReceipt(null)}>Schließen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* BelegZuordnenDialog */}
       <BelegZuordnenDialog

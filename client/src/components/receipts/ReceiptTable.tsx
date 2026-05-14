@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,7 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3 } from "lucide-react";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
@@ -22,6 +23,32 @@ import type { ReceiptRow } from "@/types/receipt";
 interface ReceiptTableProps {
   hideFilters?: boolean;
   limit?: number;
+}
+
+type ColumnKey = "datum" | "haendler" | "betrag" | "mwst" | "trinkgeld" | "kategorie" | "zahlungsmethode";
+
+const COLUMNS: { key: ColumnKey; label: string; required?: boolean }[] = [
+  { key: "datum", label: "Datum", required: true },
+  { key: "haendler", label: "Händler", required: true },
+  { key: "betrag", label: "Betrag", required: true },
+  { key: "mwst", label: "MwSt" },
+  { key: "trinkgeld", label: "Trinkgeld" },
+  { key: "kategorie", label: "Kategorie" },
+  { key: "zahlungsmethode", label: "Zahlung" },
+];
+
+const LS_KEY = "receipt-table-columns";
+
+function loadColumnVisibility(): Record<ColumnKey, boolean> {
+  try {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored) return { ...defaultVisibility(), ...JSON.parse(stored) };
+  } catch {}
+  return defaultVisibility();
+}
+
+function defaultVisibility(): Record<ColumnKey, boolean> {
+  return { datum: true, haendler: true, betrag: true, mwst: true, trinkgeld: true, kategorie: true, zahlungsmethode: true };
 }
 
 function SortableHeader({
@@ -93,6 +120,27 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     column: "datum",
     direction: "desc",
   });
+  const [colVisibility, setColVisibility] = useState<Record<ColumnKey, boolean>>(loadColumnVisibility);
+  const [colMenuOpen, setColMenuOpen] = useState(false);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
+        setColMenuOpen(false);
+      }
+    }
+    if (colMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [colMenuOpen]);
+
+  function toggleColumn(key: ColumnKey) {
+    const next = { ...colVisibility, [key]: !colVisibility[key] };
+    setColVisibility(next);
+    localStorage.setItem(LS_KEY, JSON.stringify(next));
+  }
+
+  const visibleCount = COLUMNS.filter((c) => colVisibility[c.key]).length;
 
   const handleSort = (column: keyof ReceiptRow) => {
     setSortConfig((current) => ({
@@ -184,53 +232,87 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     <>
       <div className="space-y-6">
         {!hideFilters && (
-          <div className="space-y-2">
-            <ReceiptFilters filters={filters} setFilters={setFilters} categories={categories} />
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                {filtered.length} {filtered.length === 1 ? "Ergebnis" : "Ergebnisse"}
-              </span>
-            </div>
-          </div>
+          <ReceiptFilters filters={filters} setFilters={setFilters} categories={categories} />
         )}
+        <div className="flex items-center justify-between px-1">
+          {!hideFilters ? (
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+              {filtered.length} {filtered.length === 1 ? "Ergebnis" : "Ergebnisse"}
+            </span>
+          ) : (
+            <span />
+          )}
+          <div className="relative" ref={colMenuRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-xs text-muted-foreground"
+              onClick={() => setColMenuOpen((v) => !v)}
+            >
+              <Columns3 className="h-3.5 w-3.5" />
+              Spalten
+            </Button>
+            {colMenuOpen && (
+              <div className="absolute right-0 top-8 z-50 w-44 rounded-xl border border-border/60 bg-card shadow-lg p-2 space-y-0.5">
+                {COLUMNS.map((col) => (
+                  <label
+                    key={col.key}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-muted/50 transition-colors select-none ${col.required ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <Checkbox
+                      checked={colVisibility[col.key]}
+                      disabled={col.required}
+                      onCheckedChange={() => !col.required && toggleColumn(col.key)}
+                    />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         
         <div className={hideFilters ? "" : "clay-card-static rounded-2xl overflow-hidden"}>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-b border-[hsl(var(--border))]">
-                <SortableHeader column="datum" currentSort={sortConfig} onSort={handleSort}>Datum</SortableHeader>
-                <SortableHeader column="haendler" currentSort={sortConfig} onSort={handleSort}>Händler</SortableHeader>
-                <SortableHeader column="betrag" currentSort={sortConfig} onSort={handleSort} className="text-right">Betrag</SortableHeader>
-                <SortableHeader column="mwst" currentSort={sortConfig} onSort={handleSort} className="text-right">MwSt</SortableHeader>
-                <SortableHeader column="trinkgeld" currentSort={sortConfig} onSort={handleSort} className="text-right">Trinkgeld</SortableHeader>
-                <SortableHeader column="kategorie" currentSort={sortConfig} onSort={handleSort}>Kategorie</SortableHeader>
-                <SortableHeader column="zahlungsmethode" currentSort={sortConfig} onSort={handleSort}>Zahlung</SortableHeader>
+                {colVisibility.datum && <SortableHeader column="datum" currentSort={sortConfig} onSort={handleSort}>Datum</SortableHeader>}
+                {colVisibility.haendler && <SortableHeader column="haendler" currentSort={sortConfig} onSort={handleSort}>Händler</SortableHeader>}
+                {colVisibility.betrag && <SortableHeader column="betrag" currentSort={sortConfig} onSort={handleSort} className="text-right">Betrag</SortableHeader>}
+                {colVisibility.mwst && <SortableHeader column="mwst" currentSort={sortConfig} onSort={handleSort} className="text-right">MwSt</SortableHeader>}
+                {colVisibility.trinkgeld && <SortableHeader column="trinkgeld" currentSort={sortConfig} onSort={handleSort} className="text-right">Trinkgeld</SortableHeader>}
+                {colVisibility.kategorie && <SortableHeader column="kategorie" currentSort={sortConfig} onSort={handleSort}>Kategorie</SortableHeader>}
+                {colVisibility.zahlungsmethode && <SortableHeader column="zahlungsmethode" currentSort={sortConfig} onSort={handleSort}>Zahlung</SortableHeader>}
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={visibleCount + 1} className="text-center text-muted-foreground py-8">
                     Keine Belege gefunden.
                   </TableCell>
                 </TableRow>
               )}
               {filtered.map((r) => (
                 <TableRow key={r.id} className="group hover:bg-[var(--hover-bg)] transition-colors border-b border-[hsl(var(--border))]">
-                  <TableCell className="text-muted-foreground font-medium">{formatDateIso(r.datum)}</TableCell>
-                  <TableCell className="font-medium">{r.haendler}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(r.betrag, r.waehrung)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(r.mwst, r.waehrung)}</TableCell>
-                  <TableCell className="text-right">
-                    {r.trinkgeld > 0 ? formatCurrency(r.trinkgeld, r.waehrung) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      {r.kategorie}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{r.zahlungsmethode}</TableCell>
+                  {colVisibility.datum && <TableCell className="text-muted-foreground font-medium">{formatDateIso(r.datum)}</TableCell>}
+                  {colVisibility.haendler && <TableCell className="font-medium">{r.haendler}</TableCell>}
+                  {colVisibility.betrag && <TableCell className="text-right">{formatCurrency(r.betrag, r.waehrung)}</TableCell>}
+                  {colVisibility.mwst && <TableCell className="text-right">{formatCurrency(r.mwst, r.waehrung)}</TableCell>}
+                  {colVisibility.trinkgeld && (
+                    <TableCell className="text-right">
+                      {r.trinkgeld > 0 ? formatCurrency(r.trinkgeld, r.waehrung) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                  )}
+                  {colVisibility.kategorie && (
+                    <TableCell>
+                      <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                        {r.kategorie}
+                      </span>
+                    </TableCell>
+                  )}
+                  {colVisibility.zahlungsmethode && <TableCell className="text-muted-foreground text-xs">{r.zahlungsmethode}</TableCell>}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">

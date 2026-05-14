@@ -15,4 +15,8 @@ export const bankApi = {
     api.post<{ ok: boolean }>("/api/bank/ignore", { transactionId }),
   clearTransactions: () =>
     api.delete<{ ok: boolean; deleted: number }>("/api/bank/transactions"),
+  autoMatch: () =>
+    api.post<{ matched: number }>("/api/bank/auto-match"),
+  autoMatchSplits: () =>
+    api.post<{ matched: number }>("/api/bank/auto-match-splits"),
 };

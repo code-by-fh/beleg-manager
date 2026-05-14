@@ -26,7 +26,7 @@ export function UnifiedInput() {
   const [speechSupported] = useState(isSpeechRecognitionSupported());
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data: inboxData, isLoading: inboxLoading, refetch: refetchInbox } = useDriveInbox();
+  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, error: inboxErrorInfo, refetch: refetchInbox } = useDriveInbox();
 
   const inputRef  = useRef<HTMLInputElement>(null);
   const videoRef  = useRef<HTMLVideoElement>(null);
@@ -204,7 +204,7 @@ export function UnifiedInput() {
 
         {/* IDLE */}
         {mode === "idle" && (
-          <div className="h-full flex flex-col items-center justify-center px-6 gap-6">
+          <div className="min-h-full flex flex-col items-center justify-center px-6 py-12 gap-8">
             <div className="text-center space-y-1">
               <h1 className="text-2xl font-display font-extrabold tracking-tight gradient-text">Beleg erfassen</h1>
               <p className="text-muted-foreground text-sm">Wähle eine Eingabemethode</p>
@@ -213,10 +213,10 @@ export function UnifiedInput() {
             <div className="w-full max-w-xs space-y-3">
               <button
                 onClick={() => inputRef.current?.click()}
-                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300"
+                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
               >
-                <div className="w-11 h-11 rounded-xl bg-[hsl(var(--foreground))] flex items-center justify-center flex-shrink-0">
-                  <Upload className="h-5 w-5 text-white" />
+                <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
+                  <Upload className="h-5 w-5 text-background" />
                 </div>
                 <div className="text-left">
                   <p className="text-foreground font-medium text-sm">Foto hochladen</p>
@@ -226,10 +226,10 @@ export function UnifiedInput() {
 
               <button
                 onClick={() => setMode("camera")}
-                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300"
+                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
               >
-                <div className="w-11 h-11 rounded-xl bg-[hsl(var(--foreground))] flex items-center justify-center flex-shrink-0">
-                  <Camera className="h-5 w-5 text-white" />
+                <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
+                  <Camera className="h-5 w-5 text-background" />
                 </div>
                 <div className="text-left">
                   <p className="text-foreground font-medium text-sm">Mit Kamera</p>
@@ -242,10 +242,10 @@ export function UnifiedInput() {
                   onPointerDown={startRecording}
                   onPointerUp={stopRecording}
                   onContextMenu={(e) => e.preventDefault()}
-                  className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300"
+                  className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[hsl(var(--foreground))] flex items-center justify-center flex-shrink-0">
-                    <Mic className="h-5 w-5 text-white" />
+                  <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
+                    <Mic className="h-5 w-5 text-background" />
                   </div>
                   <div className="text-left">
                     <p className="text-foreground font-medium text-sm">Sprache</p>
@@ -256,13 +256,13 @@ export function UnifiedInput() {
             </div>
 
             {/* ── Inbox Section ── */}
-            <div className="w-full max-w-xs mt-4 space-y-3">
+            <div className="w-full max-w-xs space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-lg bg-[hsl(var(--foreground))]/15 flex items-center justify-center">
                     <Inbox className="h-3.5 w-3.5 text-[hsl(var(--foreground))]" />
                   </div>
-                  <h2 className="text-foreground font-semibold text-xs">Inbox</h2>
+                  <h2 className="text-foreground font-semibold text-xs">Belege Eingang (Drive)</h2>
                   {inboxData?.files && inboxData.files.length > 0 && (
                     <span className="bg-primary/15 text-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                       {inboxData.files.length}
@@ -271,35 +271,52 @@ export function UnifiedInput() {
                 </div>
                 <button
                   onClick={() => refetchInbox()}
-                  className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground uppercase tracking-wider font-bold transition-all duration-300"
+                  disabled={inboxLoading}
+                  className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground uppercase tracking-wider font-bold transition-all duration-300 flex items-center gap-1.5"
                 >
+                  {inboxLoading && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
                   Aktualisieren
                 </button>
               </div>
 
               <div className="clay-card-static rounded-2xl overflow-hidden divide-y divide-border/30">
-                {inboxLoading ? (
-                  <div className="p-6 flex justify-center">
-                    <Loader2 className="h-4 w-4 text-muted-foreground/30 animate-spin" />
+                {inboxLoading && !inboxData ? (
+                  <div className="p-8 flex justify-center">
+                    <Loader2 className="h-5 w-5 text-muted-foreground/30 animate-spin" />
+                  </div>
+                ) : inboxError ? (
+                  <div className="p-8 text-center space-y-2">
+                    <p className="text-red-500/70 text-[11px] font-medium">Verbindung fehlgeschlagen</p>
+                    <p className="text-muted-foreground/50 text-[9px] px-4">
+                      {String((inboxErrorInfo as Error)?.message ?? "Unbekannter Fehler")}
+                    </p>
                   </div>
                 ) : !inboxData?.files || inboxData.files.length === 0 ? (
-                  <div className="p-6 text-center">
+                  <div className="p-8 text-center space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-muted/30 flex items-center justify-center mx-auto">
+                      <Inbox className="h-4 w-4 text-muted-foreground/20" />
+                    </div>
                     <p className="text-muted-foreground/40 text-[10px]">Keine Dateien in der Inbox</p>
                   </div>
                 ) : (
                   inboxData.files.map((f) => (
-                    <div key={f.id} className="p-3 flex items-center justify-between gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                    <div key={f.id} className="p-3.5 flex items-center justify-between gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                       <div className="min-w-0 flex-1">
                         <p className="text-foreground text-[11px] font-medium truncate">{f.name}</p>
-                        <p className="text-muted-foreground/60 text-[9px] truncate">
-                          {f.status === "pending_review" ? "Bereit zum Review" : "Wartet auf Verarbeitung"}
+                        <p className={cn(
+                          "text-[9px] truncate",
+                          f.status === "failed" ? "text-red-500/70" : "text-muted-foreground/60"
+                        )}>
+                          {f.status === "pending_review" && "Bereit zum Review"}
+                          {f.status === "new" && "Wartet auf Verarbeitung"}
+                          {f.status === "failed" && "Verarbeitung fehlgeschlagen"}
                         </p>
                       </div>
                       <button
                         onClick={() => importDriveFile(f.id)}
                         disabled={!!busyId}
                         className={cn(
-                          "flex-shrink-0 px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all duration-300",
+                          "flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all duration-300",
                           f.status === "pending_review"
                             ? "bg-[hsl(var(--foreground))]/15 text-[hsl(var(--foreground))] hover:bg-[hsl(var(--foreground))]/25"
                             : "bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground"
@@ -319,8 +336,8 @@ export function UnifiedInput() {
         {mode === "photo" && file && (
           <div className="p-6 flex flex-col items-center gap-6">
             <div className="clay-card-static rounded-[32px] p-5 w-full max-w-xs text-center space-y-2">
-              <div className="w-12 h-12 rounded-2xl bg-[hsl(var(--foreground))] flex items-center justify-center mx-auto">
-                <Upload className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center mx-auto">
+                <Upload className="h-6 w-6 text-background" />
               </div>
               <p className="text-foreground font-medium text-sm break-all">{file.name}</p>
               <p className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
@@ -341,7 +358,7 @@ export function UnifiedInput() {
                 className={cn(
                   "w-full h-14 rounded-[20px] flex items-center justify-center gap-2 font-bold transition-all duration-300",
                   canSubmit && !busy
-                    ? "rounded-lg bg-[hsl(var(--foreground))] text-white"
+                    ? "rounded-lg bg-foreground text-background"
                     : "bg-black/5 dark:bg-white/5 text-muted-foreground cursor-not-allowed"
                 )}
               >
@@ -456,7 +473,7 @@ export function UnifiedInput() {
                   "w-full h-16 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-3",
                   recording
                     ? "bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)] scale-[0.98] text-white"
-                    : "rounded-lg bg-[hsl(var(--foreground))] text-white"
+                    : "rounded-lg bg-foreground text-background"
                 )}
               >
                 {recording ? <MicOff className="h-6 w-6 animate-pulse" /> : <Mic className="h-6 w-6" />}

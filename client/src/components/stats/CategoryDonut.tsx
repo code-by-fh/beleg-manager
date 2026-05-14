@@ -3,7 +3,15 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { useCategories } from "@/hooks/useStats";
 import { formatCurrency } from "@/lib/formatters";
 
-const COLORS = ["#1A1A1A", "#555555", "#888888", "#AAAAAA", "#C8C8C8", "#E0E0E0", "#444444"];
+const COLORS = [
+  "hsl(var(--foreground))",
+  "hsl(var(--foreground) / 0.7)",
+  "hsl(var(--foreground) / 0.5)",
+  "hsl(var(--foreground) / 0.3)",
+  "hsl(var(--foreground) / 0.15)",
+  "hsl(var(--foreground) / 0.85)",
+  "hsl(var(--foreground) / 0.4)",
+];
 
 export function CategoryDonut() {
   const { data, isLoading } = useCategories();
@@ -29,12 +37,14 @@ export function CategoryDonut() {
             </Pie>
             <Tooltip
               contentStyle={{
-                borderRadius: '8px',
+                borderRadius: '12px',
                 border: '1px solid hsl(var(--border))',
                 boxShadow: 'var(--card-shadow)',
                 background: 'var(--surface)',
-                backdropFilter: 'none',
+                color: 'hsl(var(--foreground))',
               }}
+              itemStyle={{ color: 'hsl(var(--foreground))' }}
+              labelStyle={{ color: 'hsl(var(--foreground))' }}
               formatter={(v: number) => formatCurrency(v)}
             />
             <Legend
@@ -42,7 +52,7 @@ export function CategoryDonut() {
               height={36}
               iconType="circle"
               formatter={(v) => (
-                <span style={{ fontSize: '11px', color: 'hsl(var(--muted-foreground))' }}>{v}</span>
+                <span className="text-[11px] font-medium text-muted-foreground">{v}</span>
               )}
             />
           </PieChart>

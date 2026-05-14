@@ -14,10 +14,12 @@ export function ReceiptForm({
   initial,
   onSubmit,
   busy,
+  submitLabel = "Speichern und archivieren",
 }: {
   initial: Partial<ReceiptFormValues>;
   onSubmit: (values: ReceiptFormValues) => Promise<void>;
   busy: boolean;
+  submitLabel?: string;
 }) {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ReceiptFormValues>({
     resolver: zodResolver(ReceiptFormZ),
@@ -26,6 +28,7 @@ export function ReceiptForm({
       haendler: initial.haendler ?? "",
       betrag: initial.betrag ?? 0,
       mwst: initial.mwst ?? 0,
+      trinkgeld: initial.trinkgeld ?? 0,
       waehrung: initial.waehrung ?? "EUR",
       kategorie: initial.kategorie ?? "Sonstiges",
       zahlungsmethode: initial.zahlungsmethode ?? "Karte",
@@ -46,6 +49,9 @@ export function ReceiptForm({
       </Field>
       <Field label="MwSt" error={errors.mwst?.message}>
         <Input type="number" step="0.01" {...register("mwst")} />
+      </Field>
+      <Field label="Trinkgeld" error={errors.trinkgeld?.message}>
+        <Input type="number" step="0.01" {...register("trinkgeld")} />
       </Field>
       <Field label="Währung" error={errors.waehrung?.message}>
         <Select value={watch("waehrung")} onValueChange={(v) => setValue("waehrung", v)}>
@@ -70,7 +76,7 @@ export function ReceiptForm({
       </Field>
       <div className="md:col-span-2">
         <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Speichere..." : "Speichern und archivieren"}
+          {busy ? "Speichere..." : submitLabel}
         </Button>
       </div>
     </form>

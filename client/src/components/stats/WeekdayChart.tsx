@@ -50,11 +50,14 @@ export function WeekdayChart() {
         />
         <Tooltip
           contentStyle={{
-            borderRadius: "8px",
+            borderRadius: "12px",
             border: "1px solid hsl(var(--border))",
             boxShadow: "var(--card-shadow)",
             background: "var(--surface)",
+            color: "hsl(var(--foreground))",
           }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+          labelStyle={{ color: "hsl(var(--foreground))" }}
           formatter={(v: number) => [formatCurrency(v), "Ausgaben"]}
         />
         <Bar dataKey="total" fill="hsl(var(--foreground))" radius={[4, 4, 0, 0]} />

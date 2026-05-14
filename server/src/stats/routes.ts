@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { buildOAuth2ClientFromSession } from "../google/client.js";
+import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { computeSummary, computeMonthly, computeCategories, computeTopMerchants, computePaymentMethods } from "./compute.js";
 
@@ -13,10 +13,18 @@ export function buildStatsRouter(config: Config, userRepo: UserRepo) {
   async function loadRows(req: any) {
     const userId = req.session.userId as string;
     const user = userRepo.getById(userId);
-    if (!user?.sheetId) return [];
-    const auth = buildOAuth2ClientFromSession(config.google, req.session);
+    if (!user?.sheetId || !user.refreshToken) return [];
+    const auth = buildOAuth2ClientForRefreshToken(config.google, user.refreshToken);
     const sheets = sheetsFor(auth);
-    return readAllRows(sheets, user.sheetId);
+    try {
+      return await readAllRows(sheets, user.sheetId);
+    } catch (err: any) {
+      if (err?.status === 404 || err?.code === 404) {
+        console.warn(`[stats] spreadsheet ${user.sheetId} not found, returning empty`);
+        return [];
+      }
+      throw err;
+    }
   }
 
   router.get("/summary", async (req, res, next) => {

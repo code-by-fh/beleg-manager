@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Receipt } from "lucide-react";
+import { Search, ArrowDownLeft } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { splitsApi } from "@/api/splits";
 import { useToast } from "@/components/ui/use-toast";
@@ -97,19 +97,23 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
           )}
         </DialogHeader>
 
-        {/* Linked receipt card */}
-        {split && (
-          <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <Receipt className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Verknüpfter Beleg</p>
-              <p className="font-medium text-sm">{split.haendler}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatDateIso(split.datum)} · {formatCurrency(split.gesamtbetrag, split.waehrung)} gesamt
-              </p>
+        {/* Linked incoming payment card (manual link only) */}
+        {split && split.linkedBankTxSource === "manual" && (() => {
+          const linkedTx = (data?.transactions ?? []).find((tx) => tx.id === split.linkedBankTxId);
+          if (!linkedTx) return null;
+          return (
+            <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20 px-4 py-3">
+              <ArrowDownLeft className="h-4 w-4 mt-0.5 flex-shrink-0 text-green-600" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Verknüpfte Rückzahlung</p>
+                <p className="font-medium text-sm">{linkedTx.haendler}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDateIso(linkedTx.buchungsdatum)} · <span className="text-green-600 font-medium">{formatCurrency(linkedTx.betrag)}</span>
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -178,10 +182,15 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">
-          {split?.linkedBankTxId && (
+          {split?.linkedBankTxSource === "manual" && (
             <Button variant="ghost" className="text-destructive hover:text-destructive px-0 text-sm" disabled={busy} onClick={handleUnlink}>
               Verknüpfung aufheben
             </Button>
+          )}
+          {split?.linkedBankTxSource === "receipt" && (
+            <p className="text-xs text-muted-foreground self-center">
+              Verknüpfung über Beleg — im Beleg-Abgleich aufheben
+            </p>
           )}
           <Button variant="ghost" onClick={onClose} className="sm:ml-auto">Abbrechen</Button>
         </DialogFooter>

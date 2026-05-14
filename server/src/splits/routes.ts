@@ -6,7 +6,7 @@ import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
 import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { sheetsFor, readSplits, appendSplit, updateSplitBeglichen, deleteSplitRow } from "../google/sheets.js";
+import { sheetsFor, readSplits, appendSplit, updateSplitBeglichen, updateSplitStatus, deleteSplitRow, type SplitStatus } from "../google/sheets.js";
 
 const CreateSplitsBody = z.object({
   receiptId: z.string().min(1),
@@ -19,6 +19,10 @@ const CreateSplitsBody = z.object({
 
 const LinkBankTxBody = z.object({
   bankTxId: z.string().min(1).nullable(),
+});
+
+const SetStatusBody = z.object({
+  status: z.enum(["offen", "angefordert", "unterwegs", "ohne_verrechnung"]),
 });
 
 export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
@@ -49,11 +53,17 @@ export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
         .all(userId) as Array<{ matched_receipt_id: string; id: string }>;
       const receiptToBankTx = new Map(receiptLinks.map((r) => [r.matched_receipt_id, r.id]));
 
-      const enriched = splits.map((s) => ({
-        ...s,
-        linkedBankTxId:
-          manualLinkMap.get(s.splitId) ?? receiptToBankTx.get(s.receiptId) ?? null,
-      }));
+      const enriched = splits.map((s) => {
+        const manualTxId = manualLinkMap.get(s.splitId);
+        const receiptTxId = receiptToBankTx.get(s.receiptId);
+        const linkedBankTxId = manualTxId ?? receiptTxId ?? null;
+        const linkedBankTxSource: "manual" | "receipt" | null = manualTxId
+          ? "manual"
+          : receiptTxId
+          ? "receipt"
+          : null;
+        return { ...s, linkedBankTxId, linkedBankTxSource };
+      });
 
       res.json({ splits: enriched });
     } catch (err) {
@@ -84,6 +94,7 @@ export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
         betrag: item.betrag,
         beglichen: false,
         erstelltAm: now,
+        status: "offen" as const,
       }));
 
       await Promise.all(rows.map((row) => appendSplit(sheets, user.sheetId!, row)));
@@ -103,6 +114,24 @@ export function buildSplitsRouter(config: Config, userRepo: UserRepo, db: Db) {
       const auth = buildOAuth2ClientFromSession(config.google, req.session);
       const sheets = sheetsFor(auth);
       const ok = await updateSplitBeglichen(sheets, user.sheetId, req.params.id, beglichen);
+      if (!ok) return res.status(404).json({ error: "split not found" });
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch("/:id/status", async (req, res, next) => {
+    try {
+      const parsed = SetStatusBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid body" });
+
+      const user = userRepo.getById(req.session.userId!);
+      if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
+
+      const auth = buildOAuth2ClientFromSession(config.google, req.session);
+      const sheets = sheetsFor(auth);
+      const ok = await updateSplitStatus(sheets, user.sheetId, req.params.id, parsed.data.status as SplitStatus);
       if (!ok) return res.status(404).json({ error: "split not found" });
       res.json({ ok: true });
     } catch (err) {

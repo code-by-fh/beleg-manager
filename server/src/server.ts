@@ -12,6 +12,7 @@ import { bootstrapUserDrive } from "./google/bootstrap.js";
 import { createGeminiClient } from "./gemini/extract.js";
 import { createPendingStore } from "./receipts/pendingStore.js";
 import { startInboxPoller } from "./inbox/poller.js";
+import { startGmailPoller } from "./gmail/poller.js";
 
 const config = loadConfig(process.env);
 const db = openDatabase("data/app.db");
@@ -30,7 +31,8 @@ async function onFirstLogin(userId: string) {
 
 const app = createApp({ config, db, gemini, pending, onFirstLogin });
 const poller = startInboxPoller({ config, userRepo, gemini });
-process.on("SIGTERM", () => poller.stop());
+const gmailPoller = startGmailPoller({ config, userRepo, db });
+process.on("SIGTERM", () => { poller.stop(); gmailPoller.stop(); });
 
 app.listen(config.port, () => {
   console.log(`server listening on http://localhost:${config.port}`);

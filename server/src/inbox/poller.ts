@@ -4,8 +4,7 @@ import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-
-const SUPPORTED = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+import { SUPPORTED_MIME_TYPES } from "../receipts/types.js";
 
 export type PollerDeps = {
   config: Config;
@@ -32,7 +31,7 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
       for (const file of files) {
         if (file.appProperties?.bm_status) continue; // already processed or failed
-        if (!SUPPORTED.has(file.mimeType)) continue;
+        if (!SUPPORTED_MIME_TYPES.has(file.mimeType)) continue;
         try {
           const buffer = await downloadFile(drive, file.id);
           const extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });

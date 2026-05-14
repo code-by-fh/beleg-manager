@@ -72,3 +72,26 @@ export function computeCategories(rows: ReceiptRow[]): Array<{ kategorie: string
     .map(([kategorie, total]) => ({ kategorie, total }))
     .sort((a, b) => b.total - a.total);
 }
+
+export function computeTopMerchants(rows: ReceiptRow[], limit = 6): Array<{ haendler: string; total: number }> {
+  const byMerchant = new Map<string, number>();
+  for (const r of rows) {
+    byMerchant.set(r.haendler, (byMerchant.get(r.haendler) ?? 0) + r.betrag);
+  }
+  return [...byMerchant.entries()]
+    .map(([haendler, total]) => ({ haendler, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+}
+
+export function computePaymentMethods(rows: ReceiptRow[]): Array<{ methode: string; total: number; count: number }> {
+  const map = new Map<string, { total: number; count: number }>();
+  for (const r of rows) {
+    const m = r.zahlungsmethode || "Unbekannt";
+    const cur = map.get(m) ?? { total: 0, count: 0 };
+    map.set(m, { total: cur.total + r.betrag, count: cur.count + 1 });
+  }
+  return [...map.entries()]
+    .map(([methode, v]) => ({ methode, ...v }))
+    .sort((a, b) => b.total - a.total);
+}

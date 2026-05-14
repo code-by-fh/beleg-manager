@@ -79,6 +79,20 @@ export function createTransactionRepo(db: Db) {
       return rows.map(rowToTransaction);
     },
 
+    listUnmatched(userId: string): BankTransaction[] {
+      const rows = db
+        .prepare(
+          `SELECT id, user_id, buchungsdatum, betrag, haendler, verwendungszweck,
+                  match_status, matched_receipt_id, match_confidence, imported_at
+           FROM bank_transactions
+           WHERE user_id = ? AND match_status = 'unmatched' AND betrag < 0
+           ORDER BY buchungsdatum DESC`
+        )
+        .all(userId) as DbRow[];
+
+      return rows.map(rowToTransaction);
+    },
+
     updateMatch(
       id: string,
       userId: string,

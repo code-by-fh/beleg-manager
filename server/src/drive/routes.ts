@@ -4,7 +4,8 @@ import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import type { PendingStore } from "../receipts/pendingStore.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { buildOAuth2ClientFromSession } from "../google/client.js";
+import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
+import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
 
 export type DriveRoutesDeps = {
@@ -23,9 +24,14 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
   router.get("/inbox", async (req, res, next) => {
     try {
       const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.driveInboxFolderId) return res.json({ files: [] });
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      let user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      if (!user.driveInboxFolderId) {
+        await bootstrapUserDrive(auth, userId, deps.userRepo);
+        user = deps.userRepo.getById(userId);
+        if (!user?.driveInboxFolderId) return res.json({ files: [] });
+      }
       const drive = driveFor(auth);
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
       const enriched = files.map((f) => ({
@@ -45,13 +51,28 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
     }
   });
 
+  router.post("/reset", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      deps.userRepo.clearDriveFolderIds(userId);
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      await bootstrapUserDrive(auth, userId, deps.userRepo);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post("/import/:fileId", async (req, res, next) => {
     try {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.driveInboxFolderId) return res.status(409).json({ error: "drive not bootstrapped" });
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
       const file = files.find((f) => f.id === req.params.fileId);

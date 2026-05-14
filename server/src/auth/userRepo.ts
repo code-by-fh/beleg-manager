@@ -10,6 +10,9 @@ export type UserRow = {
   sheetId: string | null;
   refreshToken: string | null;
   createdAt: number;
+  gmailPollingEnabled: boolean;
+  gmailLabelFilter: string;
+  telegramBotToken: string | null;
 };
 
 type UpsertInput = { id: string; email: string; name: string; refreshToken: string | null };
@@ -43,11 +46,15 @@ export function createUserRepo(db: Db) {
             drive_archive_folder_id AS driveArchiveFolderId,
             sheet_id AS sheetId,
             refresh_token AS refreshToken,
-            created_at AS createdAt
+            created_at AS createdAt,
+            gmail_polling_enabled AS gmailPollingEnabled,
+            gmail_label_filter AS gmailLabelFilter,
+            telegram_bot_token AS telegramBotToken
            FROM users WHERE id = ?`
         )
-        .get(id) as UserRow | undefined;
-      return row;
+        .get(id) as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number }) | undefined;
+      if (!row) return undefined;
+      return { ...row, gmailPollingEnabled: row.gmailPollingEnabled === 1 };
     },
 
     setDriveAssets(id: string, assets: DriveAssets): void {
@@ -62,7 +69,7 @@ export function createUserRepo(db: Db) {
     },
 
     listAllWithRefreshToken(): UserRow[] {
-      return db
+      const rows = db
         .prepare(
           `SELECT id, email, name,
             drive_root_folder_id AS driveRootFolderId,
@@ -70,10 +77,30 @@ export function createUserRepo(db: Db) {
             drive_archive_folder_id AS driveArchiveFolderId,
             sheet_id AS sheetId,
             refresh_token AS refreshToken,
-            created_at AS createdAt
+            created_at AS createdAt,
+            gmail_polling_enabled AS gmailPollingEnabled,
+            gmail_label_filter AS gmailLabelFilter,
+            telegram_bot_token AS telegramBotToken
            FROM users WHERE refresh_token IS NOT NULL`
         )
-        .all() as UserRow[];
+        .all() as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number })[];
+      return rows.map((r) => ({ ...r, gmailPollingEnabled: r.gmailPollingEnabled === 1 }));
+    },
+
+    setGmailSettings(id: string, enabled: boolean, labelFilter: string): void {
+      db.prepare(
+        `UPDATE users SET gmail_polling_enabled = @enabled, gmail_label_filter = @labelFilter WHERE id = @id`
+      ).run({ id, enabled: enabled ? 1 : 0, labelFilter });
+    },
+
+    setTelegramBotToken(id: string, token: string | null): void {
+      db.prepare("UPDATE users SET telegram_bot_token = @token WHERE id = @id").run({ id, token });
+    },
+
+    clearDriveFolderIds(id: string): void {
+      db.prepare(
+        `UPDATE users SET drive_root_folder_id = NULL, drive_inbox_folder_id = NULL, drive_archive_folder_id = NULL, sheet_id = NULL WHERE id = ?`
+      ).run(id);
     },
 
     deleteUser(id: string): void {

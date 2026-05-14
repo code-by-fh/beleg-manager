@@ -16,6 +16,11 @@ export const api = {
   get: <T,>(url: string) => request<T>(url),
   post: <T,>(url: string, body?: unknown) =>
     request<T>(url, { method: "POST", body: body == null ? undefined : JSON.stringify(body) }),
+  put: <T,>(url: string, body?: unknown) =>
+    request<T>(url, { method: "PUT", body: body == null ? undefined : JSON.stringify(body) }),
+  patch: <T,>(url: string, body?: unknown) =>
+    request<T>(url, { method: "PATCH", body: body == null ? undefined : JSON.stringify(body) }),
+  delete: <T,>(url: string) => request<T>(url, { method: "DELETE" }),
   postForm: async <T,>(url: string, form: FormData): Promise<T> => {
     const res = await fetch(url, { method: "POST", credentials: "include", body: form });
     if (!res.ok) {

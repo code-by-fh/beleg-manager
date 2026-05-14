@@ -9,6 +9,7 @@ const Schema = z.object({
   OAUTH_CALLBACK_URL: z.string().url(),
   GEMINI_API_KEY: z.string().default(""),
   CLIENT_ORIGIN: z.string().url(),
+  APP_PUBLIC_URL: z.string().url().optional(),
 });
 
 export type Config = {
@@ -18,6 +19,7 @@ export type Config = {
   google: { clientId: string; clientSecret: string; callbackUrl: string };
   geminiApiKey: string;
   clientOrigin: string;
+  appPublicUrl: string;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | undefined>): Config {
@@ -33,5 +35,6 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
     },
     geminiApiKey: parsed.GEMINI_API_KEY,
     clientOrigin: parsed.CLIENT_ORIGIN,
+    appPublicUrl: parsed.APP_PUBLIC_URL ?? parsed.CLIENT_ORIGIN,
   };
 }
