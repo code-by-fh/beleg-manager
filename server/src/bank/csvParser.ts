@@ -29,31 +29,21 @@ export function parseIngCsv(csvText: string): {
     // 2. Split into lines — handle both \r\n and \n
     const lines = text.split(/\r?\n/);
 
-    // 3. Find the first blank line (empty after trim)
-    let blankLineIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if ((lines[i] ?? "").trim() === "") {
-        blankLineIndex = i;
-        break;
-      }
-    }
-
-    if (blankLineIndex === -1) {
-      errors.push("Could not find blank separator line between preamble and data");
-      return { transactions, errors };
-    }
-
-    // 4. The next non-blank line after the blank line is the column header row
+    // 3. Find the data header row: the line whose first semicolon-delimited field
+    //    (trimmed, lowercase) equals "buchung" or "buchungstag". This is robust
+    //    against the multi-block preamble format ING uses, where multiple blank
+    //    lines separate metadata blocks before the actual column headers appear.
     let headerLineIndex = -1;
-    for (let i = blankLineIndex + 1; i < lines.length; i++) {
-      if ((lines[i] ?? "").trim() !== "") {
+    for (let i = 0; i < lines.length; i++) {
+      const firstField = splitSemicolon(lines[i] ?? "")[0]?.trim().toLowerCase() ?? "";
+      if (firstField === "buchung" || firstField === "buchungstag") {
         headerLineIndex = i;
         break;
       }
     }
 
     if (headerLineIndex === -1) {
-      errors.push("Could not find column header row after blank separator line");
+      errors.push("Could not find column header row (expected a line starting with 'Buchung' or 'Buchungstag')");
       return { transactions, errors };
     }
 
@@ -63,7 +53,7 @@ export function parseIngCsv(csvText: string): {
 
     // Build index map for the columns we care about
     const colIndex = {
-      buchungstag: headers.indexOf("buchungstag"),
+      buchungstag: findHeaderIndex(headers, ["buchung", "buchungstag"]),
       haendler: findHeaderIndex(headers, [
         "auftraggeber/empfänger",          // NFC precomposed ä (U+00E4)
         "auftraggeber/empfänger",         // NFD a + combining diaeresis (U+0308)
@@ -76,7 +66,7 @@ export function parseIngCsv(csvText: string): {
 
     // Validate required columns exist
     const missing: string[] = [];
-    if (colIndex.buchungstag === -1) missing.push("Buchungstag");
+    if (colIndex.buchungstag === -1) missing.push("Buchung");
     if (colIndex.haendler === -1) missing.push("Auftraggeber/Empfänger");
     if (colIndex.betrag === -1) missing.push("Betrag");
     if (colIndex.verwendungszweck === -1) missing.push("Verwendungszweck");
