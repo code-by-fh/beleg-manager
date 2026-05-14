@@ -135,6 +135,8 @@ export function KontoabgleichPage() {
 
   // ── Unmatch / restore ────────────────────────────────────────────────────────
 
+  // Works for both matched→unmatched and ignored→unmatched:
+  // backend sets match_status = 'unmatched' when receiptId is null
   async function handleUnmatch(tx: BankTransaction) {
     setBusyTx(tx.id);
     try {
@@ -193,9 +195,9 @@ export function KontoabgleichPage() {
         >
           <Upload className="h-8 w-8 opacity-50" />
           <span className="text-sm font-medium">
-            {importing ? "Wird importiert…" : "CSV-Datei auswählen oder ablegen"}
+            {importing ? "Wird importiert…" : "ING-CSV hier ablegen oder auswählen"}
           </span>
-          <span className="text-xs opacity-60">Unterstützt Sparkasse, DKB, Commerzbank u.a.</span>
+          <span className="text-xs opacity-60">ING Deutschland Kontoauszug (CSV-Export)</span>
         </button>
         {lastImportErrors.length > 0 && (
           <div className="text-sm text-red-600 space-y-1">
