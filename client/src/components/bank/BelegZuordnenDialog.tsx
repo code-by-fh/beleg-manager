@@ -43,7 +43,11 @@ export function BelegZuordnenDialog({ transaction, onClose, onAssigned, alreadyM
   });
 
   const filtered = useMemo(() => {
-    const rows = (data?.rows ?? []).filter((r) => !alreadyMatchedReceiptIds.has(r.id));
+    // Allow the currently matched receipt to appear so it can be re-selected
+    const currentlyMatched = transaction?.matchedReceiptId ?? null;
+    const rows = (data?.rows ?? []).filter(
+      (r) => r.id === currentlyMatched || !alreadyMatchedReceiptIds.has(r.id)
+    );
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
     return rows.filter((r) => r.haendler.toLowerCase().includes(q));

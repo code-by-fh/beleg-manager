@@ -1,4 +1,5 @@
 import { useRef, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Table,
@@ -21,10 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { Upload } from "lucide-react";
 import { bankApi } from "@/api/bank";
+import { receiptsApi } from "@/api/receipts";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { BelegZuordnenDialog } from "@/components/bank/BelegZuordnenDialog";
 import type { BankTransaction } from "@/types/bank";
+import type { ReceiptRow } from "@/types/receipt";
 
 // ── Confidence badge ──────────────────────────────────────────────────────────
 
@@ -71,6 +74,7 @@ export function KontoabgleichPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams] = useSearchParams();
 
   const [importing, setImporting] = useState(false);
   const [assignTx, setAssignTx] = useState<BankTransaction | null>(null);
@@ -83,6 +87,17 @@ export function KontoabgleichPage() {
     queryKey: ["bank-transactions"],
     queryFn: () => bankApi.listTransactions(),
   });
+
+  const { data: receiptsData } = useQuery({
+    queryKey: ["receipts"],
+    queryFn: () => receiptsApi.list(),
+  });
+
+  const receiptMap = useMemo<Map<string, ReceiptRow>>(() => {
+    const map = new Map<string, ReceiptRow>();
+    for (const r of receiptsData?.rows ?? []) map.set(r.id, r);
+    return map;
+  }, [receiptsData]);
 
   const transactions = data?.transactions ?? [];
   const unmatched = transactions.filter((t) => t.matchStatus === "unmatched");
@@ -239,7 +254,7 @@ export function KontoabgleichPage() {
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : (
-        <Tabs defaultValue="unmatched">
+        <Tabs defaultValue={searchParams.get("tab") ?? "unmatched"}>
           <TabsList>
             <TabsTrigger value="unmatched">
               Nicht zugeordnet {unmatched.length > 0 && <span className="ml-1.5 rounded-full bg-yellow-100 text-yellow-700 px-1.5 text-[10px] font-bold">{unmatched.length}</span>}
@@ -310,31 +325,57 @@ export function KontoabgleichPage() {
                     <TableHead>Händler</TableHead>
                     <TableHead className="text-right">Betrag</TableHead>
                     <TableHead>Konfidenz</TableHead>
+                    <TableHead>Verknüpfter Beleg</TableHead>
                     <TableHead className="text-right">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {matched.length === 0 ? (
-                    <EmptyRow colSpan={5} message="Noch keine Transaktionen abgeglichen." />
+                    <EmptyRow colSpan={6} message="Noch keine Transaktionen abgeglichen." />
                   ) : (
-                    matched.map((tx) => (
-                      <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border">
-                        <TableCell className="text-muted-foreground">{formatDateIso(tx.buchungsdatum)}</TableCell>
-                        <TableCell className="font-medium">{tx.haendler}</TableCell>
-                        <TableCell className="text-right"><BetragCell betrag={tx.betrag} /></TableCell>
-                        <TableCell><ConfidenceBadge confidence={tx.matchConfidence} /></TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleUnmatch(tx)}
-                            disabled={busyTx === tx.id}
-                          >
-                            Aufheben
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    matched.map((tx) => {
+                      const receipt = tx.matchedReceiptId ? receiptMap.get(tx.matchedReceiptId) : undefined;
+                      return (
+                        <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border">
+                          <TableCell className="text-muted-foreground">{formatDateIso(tx.buchungsdatum)}</TableCell>
+                          <TableCell className="font-medium">{tx.haendler}</TableCell>
+                          <TableCell className="text-right"><BetragCell betrag={tx.betrag} /></TableCell>
+                          <TableCell><ConfidenceBadge confidence={tx.matchConfidence} /></TableCell>
+                          <TableCell>
+                            {receipt ? (
+                              <span className="text-sm">
+                                <span className="font-medium">{receipt.haendler}</span>
+                                <span className="text-muted-foreground text-xs ml-1.5">
+                                  {formatDateIso(receipt.datum)} · {formatCurrency(receipt.betrag, receipt.waehrung)}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setAssignTx(tx)}
+                                disabled={busyTx === tx.id}
+                              >
+                                Neu zuordnen
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUnmatch(tx)}
+                                disabled={busyTx === tx.id}
+                              >
+                                Aufheben
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

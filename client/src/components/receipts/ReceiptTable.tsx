@@ -1,21 +1,26 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight } from "lucide-react";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
 import { ReceiptForm } from "./ReceiptForm";
+import { SplitDialog } from "./SplitDialog";
 import { receiptsApi } from "@/api/receipts";
+import { splitsApi } from "@/api/splits";
+import { bankApi } from "@/api/bank";
 import { useToast } from "@/components/ui/use-toast";
 import type { ReceiptRow } from "@/types/receipt";
 
 interface ReceiptTableProps {
   hideFilters?: boolean;
+  limit?: number;
 }
 
 function SortableHeader({
@@ -58,13 +63,29 @@ function SortableHeader({
   );
 }
 
-export function ReceiptTable({ hideFilters }: ReceiptTableProps) {
+export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
+  const navigate = useNavigate();
   const { data, isLoading } = useReceipts();
+  const { data: splitsData } = useQuery({ queryKey: ["splits"], queryFn: () => splitsApi.list() });
+  const { data: bankData } = useQuery({ queryKey: ["bank-transactions"], queryFn: () => bankApi.listTransactions() });
   const qc = useQueryClient();
+
+  const allSplits = splitsData?.splits ?? [];
+  const splitReceiptIds = useMemo(() => new Set(allSplits.map((s) => s.receiptId)), [allSplits]);
+  const knownPersons = useMemo(() => [...new Set(allSplits.map((s) => s.person))].sort(), [allSplits]);
+  // Map receiptId → bankTxId for matched transactions
+  const matchedReceiptTxMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const tx of bankData?.transactions ?? []) {
+      if (tx.matchStatus === "matched" && tx.matchedReceiptId) map.set(tx.matchedReceiptId, tx.id);
+    }
+    return map;
+  }, [bankData]);
   const { toast } = useToast();
   const [filters, setFilters] = useState<Filters>({ search: "", kategorie: "__all__", from: "", to: "" });
   const [editRow, setEditRow] = useState<ReceiptRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<ReceiptRow | null>(null);
+  const [splitRow, setSplitRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ column: keyof ReceiptRow; direction: "asc" | "desc" }>({
     column: "datum",
@@ -119,9 +140,9 @@ export function ReceiptTable({ hideFilters }: ReceiptTableProps) {
 
       return 0;
     });
-
-    return rows;
-  }, [data, filters, sortConfig]);
+    
+    return limit ? rows.slice(0, limit) : rows;
+  }, [data, filters, sortConfig, limit]);
 
   async function handleEdit(values: import("@/lib/validators").ReceiptFormValues) {
     if (!editRow) return;
@@ -161,7 +182,14 @@ export function ReceiptTable({ hideFilters }: ReceiptTableProps) {
     <>
       <div className="space-y-6">
         {!hideFilters && (
-          <ReceiptFilters filters={filters} setFilters={setFilters} categories={categories} />
+          <div className="space-y-2">
+            <ReceiptFilters filters={filters} setFilters={setFilters} categories={categories} />
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                {filtered.length} {filtered.length === 1 ? "Ergebnis" : "Ergebnisse"}
+              </span>
+            </div>
+          </div>
         )}
         
         <div className={hideFilters ? "" : "clay-card-static rounded-2xl overflow-hidden"}>
@@ -206,9 +234,31 @@ export function ReceiptTable({ hideFilters }: ReceiptTableProps) {
                       <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSplitRow(r)}
+                        aria-label="Aufteilen"
+                        title={splitReceiptIds.has(r.id) ? "Aufteilung bearbeiten" : "Aufteilen"}
+                        className={splitReceiptIds.has(r.id) ? "text-blue-500 hover:text-blue-600" : ""}
+                      >
+                        <SplitSquareHorizontal className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => setDeleteRow(r)} aria-label="Löschen" className="text-destructive hover:text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      {matchedReceiptTxMap.has(r.id) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Im Kontoabgleich anzeigen"
+                          aria-label="Im Kontoabgleich anzeigen"
+                          className="text-blue-500 hover:text-blue-600"
+                          onClick={() => navigate("/kontoabgleich?tab=matched")}
+                        >
+                          <ArrowLeftRight className="h-4 w-4" />
+                        </Button>
+                      )}
                       {r.driveLink && (
                         <Button asChild variant="ghost" size="icon">
                           <a href={r.driveLink} target="_blank" rel="noreferrer" aria-label="In Drive öffnen">
@@ -269,6 +319,7 @@ export function ReceiptTable({ hideFilters }: ReceiptTableProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SplitDialog receipt={splitRow} allSplits={allSplits} knownPersons={knownPersons} onClose={() => setSplitRow(null)} />
     </>
   );
 }
