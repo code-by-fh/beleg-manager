@@ -66,7 +66,7 @@ export function createApp(deps: AppDeps): Express {
   }));
   app.use("/api/admin", buildAdminRouter(deps.config, userRepo, deps.db));
   app.use("/api/settings", buildSettingsRouter(userRepo, deps.config));
-  app.use("/api/splits", buildSplitsRouter(deps.config, userRepo));
+  app.use("/api/splits", buildSplitsRouter(deps.config, userRepo, deps.db));
   app.use("/api/bank", buildBankRouter({ config: deps.config, userRepo, db: deps.db }));
   app.use("/api/telegram", buildTelegramRouter({
     config: deps.config,

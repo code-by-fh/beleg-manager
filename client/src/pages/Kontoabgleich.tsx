@@ -121,9 +121,12 @@ export function KontoabgleichPage() {
       setLastImportErrors(result.parseErrors);
       toast({
         title: `${result.imported} Transaktionen importiert`,
-        description: `${result.autoMatched} automatisch abgeglichen · ${result.unmatched} offen${
-          result.parseErrors.length > 0 ? ` · ${result.parseErrors.length} Fehler` : ""
-        }`,
+        description: [
+          `${result.autoMatched} Belege abgeglichen`,
+          result.splitAutoLinked > 0 ? `${result.splitAutoLinked} Aufteilungen ausgeglichen` : "",
+          `${result.unmatched} offen`,
+          result.parseErrors.length > 0 ? `${result.parseErrors.length} Fehler` : "",
+        ].filter(Boolean).join(" · "),
       });
     } catch {
       toast({ title: "Import fehlgeschlagen", variant: "destructive" });

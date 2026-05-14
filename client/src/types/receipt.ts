@@ -21,7 +21,7 @@ export type ReceiptRow = {
   zahlungsmethode: string;
   rechnungsnummer: string;
   driveLink: string;
-  eingabeTyp: "foto" | "sprache" | "drive";
+  eingabeTyp: "foto" | "sprache" | "drive" | "telegram" | "email";
   erstelltAm: string;
 };
 
@@ -39,6 +39,20 @@ export type DriveInboxFile = {
   mimeType: string;
   status: "new" | "pending_review" | "failed";
   extracted: Extraction | null;
+};
+
+export type SplitRow = {
+  splitId: string;
+  receiptId: string;
+  haendler: string;
+  datum: string;
+  gesamtbetrag: number;
+  waehrung: string;
+  person: string;
+  betrag: number;
+  beglichen: boolean;
+  erstelltAm: string;
+  linkedBankTxId: string | null;
 };
 
 export type StatsSummary = {

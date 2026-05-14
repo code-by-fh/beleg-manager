@@ -36,6 +36,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_tx_dedup
   ON bank_transactions(user_id, buchungsdatum, betrag, haendler);
 CREATE INDEX IF NOT EXISTS idx_bank_tx_receipt
   ON bank_transactions(matched_receipt_id);
+CREATE TABLE IF NOT EXISTS split_bank_links (
+  split_id    TEXT NOT NULL,
+  user_id     TEXT NOT NULL,
+  bank_tx_id  TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (split_id, user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (bank_tx_id) REFERENCES bank_transactions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_split_bank_links_user
+  ON split_bank_links(user_id);
 `;
 
 function addColumnIfMissing(db: Db, table: string, column: string, def: string) {
