@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search } from "lucide-react";
+import { Search, Receipt } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { splitsApi } from "@/api/splits";
 import { useToast } from "@/components/ui/use-toast";
@@ -93,11 +93,23 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
               <span className="font-medium text-foreground">{split.person}</span>
               {" schuldet "}
               <span className="font-medium text-foreground">{formatCurrency(split.betrag, split.waehrung)}</span>
-              {" · "}
-              {split.haendler} · {formatDateIso(split.datum)}
             </DialogDescription>
           )}
         </DialogHeader>
+
+        {/* Linked receipt card */}
+        {split && (
+          <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <Receipt className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Verknüpfter Beleg</p>
+              <p className="font-medium text-sm">{split.haendler}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatDateIso(split.datum)} · {formatCurrency(split.gesamtbetrag, split.waehrung)} gesamt
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
