@@ -1,4 +1,5 @@
 import { ReceiptTable } from "@/components/receipts/ReceiptTable";
+import { FailedReceiptsSection } from "@/components/receipts/FailedReceiptsSection";
 
 export function ReceiptsPage() {
   return (
@@ -10,6 +11,7 @@ export function ReceiptsPage() {
         </p>
       </div>
 
+      <FailedReceiptsSection />
       <ReceiptTable />
     </div>
   );

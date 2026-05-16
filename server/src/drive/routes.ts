@@ -34,13 +34,15 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       }
       const drive = driveFor(auth);
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
-      const enriched = files.map((f) => ({
-        id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        status: f.appProperties?.bm_status ?? "new",
-        extracted: f.appProperties?.bm_extracted_json ? JSON.parse(f.appProperties.bm_extracted_json) : null,
-      }));
+      const enriched = files
+        .filter((f) => f.appProperties?.bm_status !== "confirmed")
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          status: f.appProperties?.bm_status ?? "new",
+          extracted: f.appProperties?.bm_extracted_json ? JSON.parse(f.appProperties.bm_extracted_json) : null,
+        }));
       res.json({ files: enriched });
     } catch (err) {
       console.error("[drive] inbox fetch failed:", err);

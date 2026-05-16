@@ -2,8 +2,10 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X } from "lucide-react";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
+import { useFailedVoiceJobs } from "@/hooks/useFailedVoiceJobs";
+import { useState } from "react";
 
 const navItems = [
   { to: "/",         label: "Dashboard",    icon: LayoutDashboard         },
@@ -24,15 +26,26 @@ const PAGE_TITLES: Record<string, string> = {
   "/settings":        "Einstellungen",
 };
 
+const moreItems = [
+  { to: "/splits",        label: "Aufteilungen",  icon: SplitSquareHorizontal },
+  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight        },
+  { to: "/settings",      label: "Einstellungen", icon: Settings              },
+];
+
 export function AppShell() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] ?? "Beleg Manager";
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const { data: inboxData } = useDriveInbox();
+  const { data: failedVoiceData } = useFailedVoiceJobs();
   const inboxCount = inboxData?.files?.length ?? 0;
+  const failedVoiceCount = failedVoiceData?.jobs?.length ?? 0;
+  const failedDriveCount = (inboxData?.files ?? []).filter((f) => f.status === "failed").length;
+  const failedCount = failedVoiceCount + failedDriveCount;
 
   return (
     <div className="h-screen-safe flex bg-[hsl(var(--background))] w-full">
@@ -64,6 +77,11 @@ export function AppShell() {
                 <>
                   <item.icon size={18} strokeWidth={isActive ? 2 : 1.5} />
                   <span className="flex-1">{item.label}</span>
+                  {item.to === "/receipts" && failedCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {failedCount}
+                    </span>
+                  )}
                   {item.to === "/upload" && inboxCount > 0 && (
                     <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                       {inboxCount}
@@ -136,6 +154,54 @@ export function AppShell() {
         </main>
       </div>
 
+      {/* Mobile "Mehr" overlay */}
+      {moreOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+64px)] left-0 right-0 mx-4 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))]">
+              <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Weitere</span>
+              <button onClick={() => setMoreOpen(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            {moreItems.map(({ to, label, icon: Icon }) => {
+              const isActive = location.pathname.startsWith(to);
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  onClick={() => setMoreOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-[var(--active-bg)] text-[hsl(var(--foreground))] font-medium"
+                      : "text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))]"
+                  )}
+                >
+                  <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+            <div className="border-t border-[hsl(var(--border))]">
+              <button
+                onClick={() => { logout(); setMoreOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))] transition-colors"
+              >
+                <LogOut size={18} strokeWidth={1.5} />
+                <span>Abmelden</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile bottom nav */}
       <nav
         className="md:hidden bg-[var(--surface)] border-t border-[hsl(var(--border))] absolute bottom-0 w-full z-30"
@@ -143,7 +209,11 @@ export function AppShell() {
         aria-label="Mobile Navigation"
       >
         <div className="flex px-2 py-2">
-          {navItems.map(({ to, label, icon: Icon }) => {
+          {[
+            { to: "/",         label: "Dashboard", icon: LayoutDashboard },
+            { to: "/receipts", label: "Belege",    icon: Receipt         },
+            { to: "/upload",   label: "Erfassen",  icon: PlusCircle      },
+          ].map(({ to, label, icon: Icon }) => {
             const isActive = to === "/"
               ? location.pathname === "/"
               : location.pathname.startsWith(to);
@@ -151,6 +221,7 @@ export function AppShell() {
               <Link
                 key={to}
                 to={to}
+                onClick={() => setMoreOpen(false)}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
@@ -161,6 +232,11 @@ export function AppShell() {
               >
                 <div className={cn("p-1.5 rounded-lg relative", isActive ? "bg-[var(--active-bg)]" : "")}>
                   <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
+                  {to === "/receipts" && failedCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-bold border-2 border-[var(--surface)]">
+                      {failedCount}
+                    </span>
+                  )}
                   {to === "/upload" && inboxCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[8px] flex items-center justify-center rounded-full font-bold border-2 border-[var(--surface)]">
                       {inboxCount}
@@ -171,6 +247,25 @@ export function AppShell() {
               </Link>
             );
           })}
+
+          {/* Mehr Button */}
+          <button
+            onClick={() => setMoreOpen((v) => !v)}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+              moreOpen || moreItems.some((i) => location.pathname.startsWith(i.to))
+                ? "text-[hsl(var(--foreground))]"
+                : "text-[hsl(var(--muted-foreground))]"
+            )}
+          >
+            <div className={cn(
+              "p-1.5 rounded-lg",
+              moreOpen || moreItems.some((i) => location.pathname.startsWith(i.to)) ? "bg-[var(--active-bg)]" : ""
+            )}>
+              <MoreHorizontal size={20} strokeWidth={1.5} />
+            </div>
+            <span>Mehr</span>
+          </button>
         </div>
       </nav>
     </div>
