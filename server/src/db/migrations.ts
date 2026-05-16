@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS split_bank_links (
 );
 CREATE INDEX IF NOT EXISTS idx_split_bank_links_user
   ON split_bank_links(user_id);
+CREATE TABLE IF NOT EXISTS failed_voice_jobs (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL,
+  transcript TEXT NOT NULL,
+  error      TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `;
 
 function addColumnIfMissing(db: Db, table: string, column: string, def: string) {

@@ -27,6 +27,13 @@ describe("db migrations", () => {
     );
   });
 
+  it("creates failed_voice_jobs table", () => {
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+      .all() as Array<{ name: string }>;
+    expect(tables.map((t) => t.name)).toContain("failed_voice_jobs");
+  });
+
   it("upserts a user by id", () => {
     db.prepare(
       `INSERT INTO users (id, email, name, created_at)
