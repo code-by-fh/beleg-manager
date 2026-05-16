@@ -24,6 +24,9 @@ import { buildSettingsRouter } from "./settings/routes.js";
 import { buildTelegramRouter } from "./telegram/bot.js";
 import { buildSplitsRouter } from "./splits/routes.js";
 import { buildBankRouter } from "./bank/routes.js";
+import { createSplitRequestRepo } from "./split-requests/repo.js";
+import { buildSplitRequestsRouter } from "./split-requests/routes.js";
+import { buildUsersRouter } from "./users/searchRoutes.js";
 
 export type AppDeps = {
   config: Config;
@@ -35,6 +38,7 @@ export type AppDeps = {
 
 export function createApp(deps: AppDeps): Express {
   const userRepo = createUserRepo(deps.db);
+  const splitRequestRepo = createSplitRequestRepo(deps.db);
   const failedVoiceRepo = createFailedVoiceRepo(deps.db);
   configurePassport(deps.config, userRepo);
 
@@ -83,6 +87,8 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api/settings", buildSettingsRouter(userRepo, deps.config));
   app.use("/api/splits", buildSplitsRouter(deps.config, userRepo, deps.db));
   app.use("/api/bank", buildBankRouter({ config: deps.config, userRepo, db: deps.db }));
+  app.use("/api/split-requests", buildSplitRequestsRouter(deps.config, userRepo, splitRequestRepo));
+  app.use("/api/users", buildUsersRouter(deps.db));
   app.use("/api/telegram", buildTelegramRouter({
     config: deps.config,
     userRepo,
