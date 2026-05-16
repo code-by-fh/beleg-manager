@@ -21,7 +21,7 @@ export function buildSessionMiddleware(cfg: SessionConfig) {
     cookie: {
       httpOnly: true,
       secure: cfg.isProduction,
-      sameSite: "lax",
+      sameSite: cfg.isProduction ? "none" : "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   });

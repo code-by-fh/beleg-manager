@@ -1,5 +1,7 @@
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, {
+  const res = await fetch(BASE_URL + input, {
     credentials: "include",
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
     ...init,
@@ -22,7 +24,7 @@ export const api = {
     request<T>(url, { method: "PATCH", body: body == null ? undefined : JSON.stringify(body) }),
   delete: <T,>(url: string) => request<T>(url, { method: "DELETE" }),
   postForm: async <T,>(url: string, form: FormData): Promise<T> => {
-    const res = await fetch(url, { method: "POST", credentials: "include", body: form });
+    const res = await fetch(BASE_URL + url, { method: "POST", credentials: "include", body: form });
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`${res.status} ${res.statusText}: ${body}`);
