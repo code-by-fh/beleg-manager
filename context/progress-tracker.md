@@ -5,23 +5,24 @@ change.
 
 ## Current Phase
 
-- [e.g. Not started / In progress / Complete]
+- UI/UX Refinement
 
 ## Current Goal
 
-- [What you are building right now]
+- Feature development
 
 ## Completed
 
-- None yet.
+- Relocated Account feature from Sidebar to Top Header dropdown.
+- Implemented responsive account dropdown with user info, settings link, and logout.
 
 ## In Progress
 
-- None yet.
+- None.
 
 ## Next Up
 
-- [First unit to build]
+- Monitoring system for further UI improvements.
 
 ## Open Questions
 

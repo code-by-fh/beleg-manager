@@ -39,6 +39,7 @@ export function AppShell() {
   const pageTitle = PAGE_TITLES[location.pathname] ?? "Beleg Manager";
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const { data: inboxData } = useDriveInbox();
   const { data: failedVoiceData } = useFailedVoiceJobs();
@@ -94,24 +95,6 @@ export function AppShell() {
         </nav>
 
 
-        {/* User / Logout */}
-        <div className="mt-auto pt-4 border-t border-[hsl(var(--border))]">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-[var(--active-bg)] flex items-center justify-center text-xs font-semibold text-[hsl(var(--foreground))] flex-shrink-0">
-              {initials}
-            </div>
-            <span className="text-xs text-[hsl(var(--muted-foreground))] truncate flex-1 min-w-0">
-              {user?.email ?? ""}
-            </span>
-            <button
-              onClick={logout}
-              className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors flex-shrink-0"
-              title="Abmelden"
-            >
-              <LogOut size={16} strokeWidth={1.5} />
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}
@@ -142,8 +125,46 @@ export function AppShell() {
               {theme === "dark" ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
             </button>
 
-            <div className="h-9 w-9 rounded-full bg-[var(--active-bg)] text-[hsl(var(--foreground))] flex items-center justify-center font-semibold text-xs">
-              {initials}
+            <div className="relative">
+              <button
+                onClick={() => setAccountOpen(!accountOpen)}
+                className="h-9 w-9 rounded-full bg-[var(--active-bg)] text-[hsl(var(--foreground))] flex items-center justify-center font-semibold text-xs hover:ring-2 hover:ring-[hsl(var(--border))] transition-all focus:outline-none"
+                aria-label="Konto-Menü"
+              >
+                {initials}
+              </button>
+
+              {accountOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setAccountOpen(false)} 
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-3 border-b border-[hsl(var(--border))] mb-1">
+                      <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">Konto</p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">{user?.email}</p>
+                    </div>
+                    
+                    <Link
+                      to="/settings"
+                      onClick={() => setAccountOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))] transition-colors"
+                    >
+                      <Settings size={16} strokeWidth={1.5} />
+                      <span>Einstellungen</span>
+                    </Link>
+
+                    <button
+                      onClick={() => { logout(); setAccountOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                    >
+                      <LogOut size={16} strokeWidth={1.5} />
+                      <span>Abmelden</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
