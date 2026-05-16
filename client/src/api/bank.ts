@@ -31,8 +31,12 @@ export const bankApi = {
   deleteTransaction: (id: string) =>
     api.delete<{ ok: boolean }>(`/api/bank/transactions/${id}`),
 
-  deleteRange: (from: string, to: string) =>
-    api.delete<{ ok: boolean; deleted: number }>(
-      `/api/bank/transactions?from=${from}&to=${to}`
-    ),
+  deleteRange: (from: string, to: string) => {
+    const params = new URLSearchParams();
+    params.set("from", from);
+    params.set("to", to);
+    return api.delete<{ ok: boolean; deleted: number }>(
+      `/api/bank/transactions?${params.toString()}`
+    );
+  },
 };
