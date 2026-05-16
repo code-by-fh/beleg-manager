@@ -7,7 +7,11 @@ function getKey(): Buffer | null {
   const raw = process.env.BANK_ENCRYPTION_KEY;
   if (!raw) return null;
   const buf = Buffer.from(raw, raw.length === 64 ? "hex" : "base64");
-  return buf.length === 32 ? buf : null;
+  if (buf.length !== 32) {
+    console.warn("[bank/crypto] BANK_ENCRYPTION_KEY is set but decoded to wrong length — encryption disabled");
+    return null;
+  }
+  return buf;
 }
 
 export function encrypt(plaintext: string): string {

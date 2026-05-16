@@ -40,9 +40,8 @@ describe("bank crypto", () => {
 
   it("decrypt returns input unchanged for corrupted ciphertext", () => {
     const corrupted = "aGVsbG8=:d29ybGQ=:AAAA"; // wrong auth tag length
-    const result = decrypt(corrupted);
     // Should not throw; returns the raw input
-    expect(typeof result).toBe("string");
+    expect(decrypt(corrupted)).toBe(corrupted);
   });
 
   it("handles empty string round-trip", () => {
