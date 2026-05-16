@@ -13,6 +13,7 @@ export type UserRow = {
   gmailPollingEnabled: boolean;
   gmailLabelFilter: string;
   telegramBotToken: string | null;
+  receiptsViewMode: "table" | "list";
 };
 
 type UpsertInput = { id: string; email: string; name: string; refreshToken: string | null };
@@ -49,7 +50,8 @@ export function createUserRepo(db: Db) {
             created_at AS createdAt,
             gmail_polling_enabled AS gmailPollingEnabled,
             gmail_label_filter AS gmailLabelFilter,
-            telegram_bot_token AS telegramBotToken
+            telegram_bot_token AS telegramBotToken,
+            receipts_view_mode AS receiptsViewMode
            FROM users WHERE id = ?`
         )
         .get(id) as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number }) | undefined;
@@ -80,7 +82,8 @@ export function createUserRepo(db: Db) {
             created_at AS createdAt,
             gmail_polling_enabled AS gmailPollingEnabled,
             gmail_label_filter AS gmailLabelFilter,
-            telegram_bot_token AS telegramBotToken
+            telegram_bot_token AS telegramBotToken,
+            receipts_view_mode AS receiptsViewMode
            FROM users WHERE refresh_token IS NOT NULL`
         )
         .all() as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number })[];
@@ -95,6 +98,9 @@ export function createUserRepo(db: Db) {
 
     setTelegramBotToken(id: string, token: string | null): void {
       db.prepare("UPDATE users SET telegram_bot_token = @token WHERE id = @id").run({ id, token });
+    },
+    setReceiptsViewMode(id: string, mode: "table" | "list"): void {
+      db.prepare("UPDATE users SET receipts_view_mode = @mode WHERE id = @id").run({ id, mode });
     },
 
     clearDriveFolderIds(id: string): void {

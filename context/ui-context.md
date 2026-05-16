@@ -52,8 +52,8 @@ All components use CSS variables mapped to HSL tokens for theme consistency.
 - **Modals**: Centered overlays with `backdrop-blur-sm` and `animate-in`.
 - **Cards**: "Clay" cards with subtle borders and 12px rounding.
 
-## Icons
+## Data Display Patterns
 
-Lucide React is used across the application. 
-- Stroke width: 1.5 for secondary, 2 for active/primary.
-- Sizes: `18px` for sidebar nav, `16px` for buttons/header.
+- **Tables**: Default for desktop. Uses sortable headers and column visibility toggles.
+- **List View (Mobile)**: Optimized for touch. Displays data as individual cards with stacked information (Merchant, Amount, Date).
+- **Charts**: Recharts used for data visualization. Dashboard uses a multi-row grid layout for a technical "Admin" feel.

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3 } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid } from "lucide-react";
+import { settingsApi } from "@/api/settings";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
@@ -123,6 +124,18 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const [colVisibility, setColVisibility] = useState<Record<ColumnKey, boolean>>(loadColumnVisibility);
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
+
+  const { data: uiSettings } = useQuery({
+    queryKey: ["ui-settings"],
+    queryFn: () => settingsApi.getUI(),
+  });
+  const [viewMode, setViewMode] = useState<"table" | "list">("table");
+
+  useEffect(() => {
+    if (uiSettings?.receiptsViewMode) {
+      setViewMode(uiSettings.receiptsViewMode);
+    }
+  }, [uiSettings]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -242,131 +255,212 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           ) : (
             <span />
           )}
-          <div className="relative" ref={colMenuRef}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 text-xs text-muted-foreground"
-              onClick={() => setColMenuOpen((v) => !v)}
-            >
-              <Columns3 className="h-3.5 w-3.5" />
-              Spalten
-            </Button>
-            {colMenuOpen && (
-              <div className="absolute right-0 top-8 z-50 w-44 rounded-xl border border-border/60 bg-card shadow-lg p-2 space-y-0.5">
-                {COLUMNS.map((col) => (
-                  <label
-                    key={col.key}
-                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-muted/50 transition-colors select-none ${col.required ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    <Checkbox
-                      checked={colVisibility[col.key]}
-                      disabled={col.required}
-                      onCheckedChange={() => !col.required && toggleColumn(col.key)}
-                    />
-                    {col.label}
-                  </label>
-                ))}
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border/40">
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7 rounded-md"
+                onClick={() => setViewMode("table")}
+                title="Tabellenansicht"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7 rounded-md"
+                onClick={() => setViewMode("list")}
+                title="Listenansicht (Mobil)"
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <div className="relative" ref={colMenuRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-muted-foreground"
+                onClick={() => setColMenuOpen((v) => !v)}
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+                Spalten
+              </Button>
+              {colMenuOpen && (
+                <div className="absolute right-0 top-8 z-50 w-44 rounded-xl border border-border/60 bg-card shadow-lg p-2 space-y-0.5">
+                  {COLUMNS.map((col) => (
+                    <label
+                      key={col.key}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-muted/50 transition-colors select-none ${col.required ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <Checkbox
+                        checked={colVisibility[col.key]}
+                        disabled={col.required}
+                        onCheckedChange={() => !col.required && toggleColumn(col.key)}
+                      />
+                      {col.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
-        <div className={hideFilters ? "" : "clay-card-static rounded-2xl overflow-hidden"}>
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-b border-[hsl(var(--border))]">
-                {colVisibility.datum && <SortableHeader column="datum" currentSort={sortConfig} onSort={handleSort}>Datum</SortableHeader>}
-                {colVisibility.haendler && <SortableHeader column="haendler" currentSort={sortConfig} onSort={handleSort}>Händler</SortableHeader>}
-                {colVisibility.betrag && <SortableHeader column="betrag" currentSort={sortConfig} onSort={handleSort} className="text-right">Betrag</SortableHeader>}
-                {colVisibility.mwst && <SortableHeader column="mwst" currentSort={sortConfig} onSort={handleSort} className="text-right">MwSt</SortableHeader>}
-                {colVisibility.trinkgeld && <SortableHeader column="trinkgeld" currentSort={sortConfig} onSort={handleSort} className="text-right">Trinkgeld</SortableHeader>}
-                {colVisibility.kategorie && <SortableHeader column="kategorie" currentSort={sortConfig} onSort={handleSort}>Kategorie</SortableHeader>}
-                {colVisibility.zahlungsmethode && <SortableHeader column="zahlungsmethode" currentSort={sortConfig} onSort={handleSort}>Zahlung</SortableHeader>}
-                <TableHead className="w-[100px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={visibleCount + 1} className="text-center text-muted-foreground py-8">
-                    Keine Belege gefunden.
-                  </TableCell>
+        {viewMode === "table" ? (
+          <div className={hideFilters ? "" : "clay-card-static rounded-2xl overflow-hidden"}>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-b border-[hsl(var(--border))]">
+                  {colVisibility.datum && <SortableHeader column="datum" currentSort={sortConfig} onSort={handleSort}>Datum</SortableHeader>}
+                  {colVisibility.haendler && <SortableHeader column="haendler" currentSort={sortConfig} onSort={handleSort}>Händler</SortableHeader>}
+                  {colVisibility.betrag && <SortableHeader column="betrag" currentSort={sortConfig} onSort={handleSort} className="text-right">Betrag</SortableHeader>}
+                  {colVisibility.mwst && <SortableHeader column="mwst" currentSort={sortConfig} onSort={handleSort} className="text-right">MwSt</SortableHeader>}
+                  {colVisibility.trinkgeld && <SortableHeader column="trinkgeld" currentSort={sortConfig} onSort={handleSort} className="text-right">Trinkgeld</SortableHeader>}
+                  {colVisibility.kategorie && <SortableHeader column="kategorie" currentSort={sortConfig} onSort={handleSort}>Kategorie</SortableHeader>}
+                  {colVisibility.zahlungsmethode && <SortableHeader column="zahlungsmethode" currentSort={sortConfig} onSort={handleSort}>Zahlung</SortableHeader>}
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
-              )}
-              {filtered.map((r) => (
-                <TableRow key={r.id} className="group hover:bg-[var(--hover-bg)] transition-colors border-b border-[hsl(var(--border))]">
-                  {colVisibility.datum && <TableCell className="text-muted-foreground font-medium">{formatDateIso(r.datum)}</TableCell>}
-                  {colVisibility.haendler && <TableCell className="font-medium">{r.haendler}</TableCell>}
-                  {colVisibility.betrag && <TableCell className="text-right">{formatCurrency(r.betrag, r.waehrung)}</TableCell>}
-                  {colVisibility.mwst && <TableCell className="text-right">{formatCurrency(r.mwst, r.waehrung)}</TableCell>}
-                  {colVisibility.trinkgeld && (
-                    <TableCell className="text-right">
-                      {r.trinkgeld > 0 ? formatCurrency(r.trinkgeld, r.waehrung) : <span className="text-muted-foreground">—</span>}
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={visibleCount + 1} className="text-center text-muted-foreground py-8">
+                      Keine Belege gefunden.
                     </TableCell>
-                  )}
-                  {colVisibility.kategorie && (
-                    <TableCell>
-                      <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  </TableRow>
+                )}
+                {filtered.map((r) => (
+                  <TableRow key={r.id} className="group hover:bg-[var(--hover-bg)] transition-colors border-b border-[hsl(var(--border))]">
+                    {colVisibility.datum && <TableCell className="text-muted-foreground font-medium">{formatDateIso(r.datum)}</TableCell>}
+                    {colVisibility.haendler && <TableCell className="font-medium">{r.haendler}</TableCell>}
+                    {colVisibility.betrag && <TableCell className="text-right">{formatCurrency(r.betrag, r.waehrung)}</TableCell>}
+                    {colVisibility.mwst && <TableCell className="text-right">{formatCurrency(r.mwst, r.waehrung)}</TableCell>}
+                    {colVisibility.trinkgeld && (
+                      <TableCell className="text-right">
+                        {r.trinkgeld > 0 ? formatCurrency(r.trinkgeld, r.waehrung) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
+                    {colVisibility.kategorie && (
+                      <TableCell>
+                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                          {r.kategorie}
+                        </span>
+                      </TableCell>
+                    )}
+                    {colVisibility.zahlungsmethode && <TableCell className="text-muted-foreground text-xs">{r.zahlungsmethode}</TableCell>}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSplitRow(r)}
+                          aria-label="Aufteilen"
+                          title={splitReceiptIds.has(r.id) ? "Aufteilung bearbeiten" : "Aufteilen"}
+                          className={splitReceiptIds.has(r.id) ? "text-blue-500 hover:text-blue-600" : ""}
+                        >
+                          <SplitSquareHorizontal className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteRow(r)} aria-label="Löschen" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        {matchedReceiptTxMap.has(r.id) ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Im Kontoabgleich anzeigen"
+                            aria-label="Im Kontoabgleich anzeigen"
+                            className="text-blue-500 hover:text-blue-600"
+                            onClick={() => navigate("/kontoabgleich?tab=matched")}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Kontobewegung zuordnen"
+                            aria-label="Kontobewegung zuordnen"
+                            onClick={() => setLinkTxRow(r)}
+                          >
+                            <Link2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {r.driveLink && (
+                          <Button asChild variant="ghost" size="icon">
+                            <a href={r.driveLink} target="_blank" rel="noreferrer" aria-label="In Drive öffnen">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {filtered.length === 0 && (
+              <div className="text-center text-muted-foreground py-12 clay-card-static rounded-2xl">
+                Keine Belege gefunden.
+              </div>
+            )}
+            {filtered.map((r) => (
+              <div key={r.id} className="clay-card-static p-4 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-bold text-foreground">{r.haendler}</h3>
+                    <p className="text-xs text-muted-foreground">{formatDateIso(r.datum)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-lg">{formatCurrency(r.betrag, r.waehrung)}</p>
+                    {r.kategorie && (
+                      <span className="px-2 py-0.5 rounded-lg bg-primary/10 text-[9px] font-bold uppercase tracking-wider text-primary">
                         {r.kategorie}
                       </span>
-                    </TableCell>
-                  )}
-                  {colVisibility.zahlungsmethode && <TableCell className="text-muted-foreground text-xs">{r.zahlungsmethode}</TableCell>}
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">
-                        <Pencil className="h-4 w-4" />
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                  <div className="text-[10px] text-muted-foreground">
+                    {r.zahlungsmethode && <span>{r.zahlungsmethode}</span>}
+                    {r.mwst > 0 && <span className="ml-2">MwSt: {formatCurrency(r.mwst, r.waehrung)}</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditRow(r)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${splitReceiptIds.has(r.id) ? "text-blue-500" : ""}`}
+                      onClick={() => setSplitRow(r)}
+                    >
+                      <SplitSquareHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteRow(r)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    {r.driveLink && (
+                      <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                        <a href={r.driveLink} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setSplitRow(r)}
-                        aria-label="Aufteilen"
-                        title={splitReceiptIds.has(r.id) ? "Aufteilung bearbeiten" : "Aufteilen"}
-                        className={splitReceiptIds.has(r.id) ? "text-blue-500 hover:text-blue-600" : ""}
-                      >
-                        <SplitSquareHorizontal className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteRow(r)} aria-label="Löschen" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      {matchedReceiptTxMap.has(r.id) ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Im Kontoabgleich anzeigen"
-                          aria-label="Im Kontoabgleich anzeigen"
-                          className="text-blue-500 hover:text-blue-600"
-                          onClick={() => navigate("/kontoabgleich?tab=matched")}
-                        >
-                          <ArrowLeftRight className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Kontobewegung zuordnen"
-                          aria-label="Kontobewegung zuordnen"
-                          onClick={() => setLinkTxRow(r)}
-                        >
-                          <Link2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {r.driveLink && (
-                        <Button asChild variant="ghost" size="icon">
-                          <a href={r.driveLink} target="_blank" rel="noreferrer" aria-label="In Drive öffnen">
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <Dialog open={editRow !== null} onOpenChange={(open) => { if (!open) setEditRow(null); }}>

@@ -7,7 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFactoryReset } from "@/hooks/useFactoryReset";
 import { useToast } from "@/components/ui/use-toast";
 import { settingsApi } from "@/api/settings";
-import { User, AlertTriangle, LogOut, Mail, Send } from "lucide-react";
+import { User, AlertTriangle, LogOut, Mail, Send, Layout, LayoutGrid, LayoutList } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function SettingsPage() {
   const { user, logout } = useAuth();
@@ -28,10 +29,20 @@ export function SettingsPage() {
   const [telegramConfigured, setTelegramConfigured] = useState(false);
   const [telegramSaving, setTelegramSaving] = useState(false);
 
+  // UI settings
+  const qc = useQueryClient();
+  const { data: uiSettings } = useQuery({
+    queryKey: ["ui-settings"],
+    queryFn: () => settingsApi.getUI(),
+  });
+  const [viewMode, setViewMode] = useState<"table" | "list">("table");
+  const [uiSaving, setUISaving] = useState(false);
+
   useEffect(() => {
     settingsApi.getGmail().then((r) => { setGmailEnabled(r.enabled); setGmailLabel(r.labelFilter); }).catch(() => {});
     settingsApi.getTelegram().then((r) => setTelegramConfigured(r.configured)).catch(() => {});
-  }, []);
+    if (uiSettings) setViewMode(uiSettings.receiptsViewMode);
+  }, [uiSettings]);
 
   async function saveGmail() {
     setGmailSaving(true);
@@ -69,6 +80,20 @@ export function SettingsPage() {
       toast({ title: "Speichern fehlgeschlagen", variant: "destructive" });
     } finally {
       setTelegramSaving(false);
+    }
+  }
+
+  async function saveUI(mode: "table" | "list") {
+    setUISaving(true);
+    setViewMode(mode);
+    try {
+      await settingsApi.setUI(mode);
+      qc.invalidateQueries({ queryKey: ["ui-settings"] });
+      toast({ title: "Anzeige-Einstellungen gespeichert" });
+    } catch {
+      toast({ title: "Speichern fehlgeschlagen", variant: "destructive" });
+    } finally {
+      setUISaving(false);
     }
   }
 
@@ -190,6 +215,54 @@ export function SettingsPage() {
                   Entfernen
                 </Button>
               )}
+            </div>
+          </div>
+
+          {/* UI Settings */}
+          <div className="clay-card-static p-6 space-y-4 h-full flex flex-col">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--active-bg)] flex items-center justify-center flex-shrink-0">
+                <Layout className="h-6 w-6 text-[hsl(var(--foreground))]" />
+              </div>
+              <div>
+                <p className="text-foreground font-bold text-sm">Anzeige</p>
+                <p className="text-muted-foreground text-xs font-medium">Standard-Ansicht für Belege</p>
+              </div>
+            </div>
+            <div className="flex-grow space-y-4">
+              <p className="text-muted-foreground text-xs leading-relaxed border-t border-border/40 pt-3">
+                Wähle, wie Belege standardmäßig angezeigt werden sollen. Die Listenansicht ist besonders für mobile Geräte optimiert.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => saveUI("table")}
+                  disabled={uiSaving}
+                  className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                    viewMode === "table"
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border"
+                  }`}
+                >
+                  <div className={`p-2 rounded-xl ${viewMode === "table" ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                    <LayoutGrid className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-bold">Tabelle</span>
+                </button>
+                <button
+                  onClick={() => saveUI("list")}
+                  disabled={uiSaving}
+                  className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                    viewMode === "list"
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border"
+                  }`}
+                >
+                  <div className={`p-2 rounded-xl ${viewMode === "list" ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                    <LayoutList className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-bold">Liste (Mobil)</span>
+                </button>
+              </div>
             </div>
           </div>
 

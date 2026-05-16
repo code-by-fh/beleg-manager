@@ -68,4 +68,5 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "gmail_polling_enabled", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "users", "gmail_label_filter", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
+  addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
 }

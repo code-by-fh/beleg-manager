@@ -15,6 +15,10 @@ change.
 
 - Relocated Account feature from Sidebar to Top Header dropdown.
 - Implemented responsive account dropdown with user info, settings link, and logout.
+- Refactored Dashboard into a premium "state-of-the-art" admin layout.
+- Removed receipts table from the dashboard to focus on analytics.
+- Implemented mobile-optimized "List/Card" view for the receipts page.
+- Added user-configurable default view mode (Table vs. List) in settings.
 
 ## In Progress
 
@@ -30,8 +34,8 @@ change.
 
 ## Architecture Decisions
 
-- [Decisions made that affect the system design or
-  data model — include why the decision was made]
+- Added `receipts_view_mode` to the `users` table to persist UI preferences across sessions/devices.
+- Introduced `/api/settings/ui` endpoint to handle UI-specific user configurations.
 
 ## Session Notes
 

@@ -14,6 +14,10 @@ const TelegramSettingsBody = z.object({
   botToken: z.string().max(200).nullable(),
 });
 
+const UISettingsBody = z.object({
+  receiptsViewMode: z.enum(["table", "list"]),
+});
+
 export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
   const router = Router();
   router.use(requireAuth);
@@ -60,6 +64,20 @@ export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
     }
 
     userRepo.setTelegramBotToken(userId, botToken);
+    res.json({ ok: true });
+  });
+  
+  router.get("/ui", (req, res) => {
+    const user = userRepo.getById(req.session.userId!);
+    res.json({
+      receiptsViewMode: user?.receiptsViewMode ?? "table",
+    });
+  });
+
+  router.post("/ui", (req, res) => {
+    const parsed = UISettingsBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid body" });
+    userRepo.setReceiptsViewMode(req.session.userId!, parsed.data.receiptsViewMode);
     res.json({ ok: true });
   });
 
