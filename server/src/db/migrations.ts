@@ -90,4 +90,17 @@ export function runMigrations(db: Db): void {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_health (
+      service_name    TEXT PRIMARY KEY,
+      last_run_at     INTEGER NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'unknown'
+                        CHECK (status IN ('ok', 'error', 'unknown')),
+      items_processed INTEGER NOT NULL DEFAULT 0,
+      items_failed    INTEGER NOT NULL DEFAULT 0,
+      last_error      TEXT,
+      updated_at      INTEGER NOT NULL
+    )
+  `);
 }

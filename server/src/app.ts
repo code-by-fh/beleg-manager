@@ -27,12 +27,15 @@ import { buildBankRouter } from "./bank/routes.js";
 import { createSplitRequestRepo } from "./split-requests/repo.js";
 import { buildSplitRequestsRouter } from "./split-requests/routes.js";
 import { buildUsersRouter } from "./users/searchRoutes.js";
+import type { HealthRepo } from "./monitoring/repo.js";
+import { buildMonitoringRouter } from "./monitoring/routes.js";
 
 export type AppDeps = {
   config: Config;
   db: Db;
   gemini: GeminiClient;
   pending: PendingStore;
+  healthRepo: HealthRepo;
   onFirstLogin?: (userId: string) => Promise<void>;
 };
 
@@ -93,7 +96,9 @@ export function createApp(deps: AppDeps): Express {
     config: deps.config,
     userRepo,
     gemini: deps.gemini,
+    healthRepo: deps.healthRepo,
   }));
+  app.use("/api/monitoring", buildMonitoringRouter(deps.healthRepo));
 
   if (deps.config.nodeEnv === "production") {
     const here = path.dirname(url.fileURLToPath(import.meta.url));

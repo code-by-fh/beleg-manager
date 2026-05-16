@@ -14,12 +14,14 @@ import { createGeminiClient } from "./gemini/extract.js";
 import { createPendingStore } from "./receipts/pendingStore.js";
 import { startInboxPoller } from "./inbox/poller.js";
 import { startGmailPoller } from "./gmail/poller.js";
+import { createHealthRepo } from "./monitoring/repo.js";
 
 const config = loadConfig(process.env);
 const db = openDatabase("data/app.db");
 runMigrations(db);
 const userRepo = createUserRepo(db);
-const gemini = createGeminiClient(config.geminiApiKey);
+const healthRepo = createHealthRepo(db);
+const gemini = createGeminiClient(config.geminiApiKey, healthRepo);
 const pending = createPendingStore({ ttlMs: 30 * 60_000 });
 setInterval(() => pending.sweep(), 5 * 60_000).unref();
 
@@ -30,9 +32,9 @@ async function onFirstLogin(userId: string) {
   await bootstrapUserDrive(auth, userId, userRepo);
 }
 
-const app = createApp({ config, db, gemini, pending, onFirstLogin });
-const poller = startInboxPoller({ config, userRepo, gemini });
-const gmailPoller = startGmailPoller({ config, userRepo, db });
+const app = createApp({ config, db, gemini, pending, healthRepo, onFirstLogin });
+const poller = startInboxPoller({ config, userRepo, gemini, healthRepo });
+const gmailPoller = startGmailPoller({ config, userRepo, db, healthRepo });
 process.on("SIGTERM", () => {
   logger.info("SIGTERM received, shutting down");
   poller.stop();

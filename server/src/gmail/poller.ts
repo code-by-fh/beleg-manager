@@ -4,6 +4,7 @@ import { logger } from "../logger.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
+import type { HealthRepo } from "../monitoring/repo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { uploadFile, driveFor } from "../google/drive.js";
 import { SUPPORTED_MIME_TYPES } from "../receipts/types.js";
@@ -12,6 +13,7 @@ export type GmailPollerDeps = {
   config: Config;
   userRepo: UserRepo;
   db: Db;
+  healthRepo?: HealthRepo;
 };
 
 const log = logger.child({ module: "gmail-poller" });
@@ -29,7 +31,28 @@ export function startGmailPoller(deps: GmailPollerDeps): { stop: () => void } {
 
   log.info("gmail poller started");
   const task = cron.schedule("*/5 * * * *", () => {
-    runOnce(deps, checkProcessed, markProcessed).catch((err) => log.error({ err }, "poll run failed"));
+    runOnce(deps, checkProcessed, markProcessed)
+      .then(({ processed, failed }) => {
+        deps.healthRepo?.upsert({
+          serviceName: "gmail-poller",
+          lastRunAt: Date.now(),
+          status: failed > 0 && processed === 0 ? "error" : "ok",
+          itemsProcessed: processed,
+          itemsFailed: failed,
+          lastError: null,
+        });
+      })
+      .catch((err) => {
+        log.error({ err }, "poll run failed");
+        deps.healthRepo?.upsert({
+          serviceName: "gmail-poller",
+          lastRunAt: Date.now(),
+          status: "error",
+          itemsProcessed: 0,
+          itemsFailed: 0,
+          lastError: String((err as Error).message ?? err).slice(0, 500),
+        });
+      });
   });
   return {
     stop: () => {

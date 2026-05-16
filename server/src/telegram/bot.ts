@@ -1,8 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import { logger } from "../logger.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
+import type { HealthRepo } from "../monitoring/repo.js";
+
+const log = logger.child({ module: "telegram-bot" });
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor } from "../google/drive.js";
 import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
@@ -52,6 +56,7 @@ export type TelegramBotDeps = {
   config: Config;
   userRepo: UserRepo;
   gemini: GeminiClient;
+  healthRepo?: HealthRepo;
 };
 
 export function buildTelegramRouter(deps: TelegramBotDeps) {
@@ -116,7 +121,7 @@ export function buildTelegramRouter(deps: TelegramBotDeps) {
           });
           driveLink = r.driveLink;
         } catch (archErr) {
-          console.error("[telegram-bot] archive failed:", archErr);
+          log.warn({ err: archErr }, "archive failed, continuing without link");
         }
       }
 
@@ -146,8 +151,24 @@ export function buildTelegramRouter(deps: TelegramBotDeps) {
         text: `✓ Beleg gespeichert: *${haendler}* · ${betrag}`,
         parse_mode: "Markdown",
       });
+      deps.healthRepo?.upsert({
+        serviceName: "telegram-bot",
+        lastRunAt: Date.now(),
+        status: "ok",
+        itemsProcessed: 1,
+        itemsFailed: 0,
+        lastError: null,
+      });
     } catch (err) {
-      console.error("[telegram-bot]", err);
+      log.error({ err }, "webhook processing failed");
+      deps.healthRepo?.upsert({
+        serviceName: "telegram-bot",
+        lastRunAt: Date.now(),
+        status: "error",
+        itemsProcessed: 0,
+        itemsFailed: 1,
+        lastError: String((err as Error).message ?? err).slice(0, 500),
+      });
       await telegramPost(user.telegramBotToken, "sendMessage", {
         chat_id: chatId,
         text: "Fehler beim Verarbeiten des Belegs. Bitte erneut versuchen.",

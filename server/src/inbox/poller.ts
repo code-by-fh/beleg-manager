@@ -4,6 +4,7 @@ import { logger } from "../logger.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
+import type { HealthRepo } from "../monitoring/repo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
 import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
@@ -14,6 +15,7 @@ export type PollerDeps = {
   config: Config;
   userRepo: UserRepo;
   gemini: GeminiClient;
+  healthRepo?: HealthRepo;
 };
 
 const log = logger.child({ module: "inbox-poller" });
@@ -21,7 +23,28 @@ const log = logger.child({ module: "inbox-poller" });
 export function startInboxPoller(deps: PollerDeps): { stop: () => void } {
   log.info("inbox poller started");
   const task = cron.schedule("*/5 * * * *", () => {
-    runOnce(deps).catch((err) => log.error({ err }, "poll run failed"));
+    runOnce(deps)
+      .then(({ processed, failed }) => {
+        deps.healthRepo?.upsert({
+          serviceName: "drive-inbox-poller",
+          lastRunAt: Date.now(),
+          status: failed > 0 && processed === 0 ? "error" : "ok",
+          itemsProcessed: processed,
+          itemsFailed: failed,
+          lastError: null,
+        });
+      })
+      .catch((err) => {
+        log.error({ err }, "poll run failed");
+        deps.healthRepo?.upsert({
+          serviceName: "drive-inbox-poller",
+          lastRunAt: Date.now(),
+          status: "error",
+          itemsProcessed: 0,
+          itemsFailed: 0,
+          lastError: String((err as Error).message ?? err).slice(0, 500),
+        });
+      });
   });
   return {
     stop: () => {
