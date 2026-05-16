@@ -7,6 +7,7 @@ const sample: ReceiptRow = {
   haendler: "Restaurant Mayer",
   betrag: 45.5,
   mwst: 7.27,
+  trinkgeld: 0,
   waehrung: "EUR",
   kategorie: "Restaurant",
   zahlungsmethode: "Karte",
