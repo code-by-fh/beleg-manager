@@ -117,7 +117,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const [linkTxRow, setLinkTxRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ column: keyof ReceiptRow; direction: "asc" | "desc" }>({
-    column: "datum",
+    column: "erstelltAm",
     direction: "desc",
   });
   const [colVisibility, setColVisibility] = useState<Record<ColumnKey, boolean>>(loadColumnVisibility);
