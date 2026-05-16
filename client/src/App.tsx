@@ -8,6 +8,7 @@ import { SettingsPage } from "@/pages/Settings";
 import { ReceiptsPage } from "@/pages/Receipts";
 import { SplitsPage } from "@/pages/Splits";
 import { KontoabgleichPage } from "@/pages/Kontoabgleich";
+import { RequestsPage } from "@/pages/Requests";
 import { AppShell } from "@/components/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RootRedirect } from "@/components/RootRedirect";
@@ -30,6 +31,7 @@ export function App() {
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/receipts" element={<ReceiptsPage />} />
               <Route path="/splits" element={<SplitsPage />} />
+              <Route path="/requests" element={<RequestsPage />} />
               <Route path="/kontoabgleich" element={<KontoabgleichPage />} />
               <Route path="/review/:pendingId" element={<ReviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />

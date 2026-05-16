@@ -2,8 +2,9 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X, HandCoins } from "lucide-react";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
+import { usePendingCount } from "@/hooks/useSplitRequests";
 import { useFailedVoiceJobs } from "@/hooks/useFailedVoiceJobs";
 import { useState } from "react";
 
@@ -11,6 +12,7 @@ const navItems = [
   { to: "/",         label: "Dashboard",    icon: LayoutDashboard         },
   { to: "/receipts", label: "Belege",       icon: Receipt                 },
   { to: "/splits",   label: "Aufteilungen", icon: SplitSquareHorizontal   },
+  { to: "/requests", label: "Anforderungen", icon: HandCoins              },
   { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight      },
   { to: "/upload",   label: "Erfassen",     icon: PlusCircle              },
   { to: "/settings", label: "Einstellungen", icon: Settings               },
@@ -20,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/":          "Dashboard",
   "/receipts":  "Belege",
   "/splits":    "Aufteilungen",
+  "/requests":  "Anforderungen",
   "/upload":          "Erfassen",
   "/kontoabgleich":   "Kontoabgleich",
   "/review":          "Prüfen",
@@ -43,6 +46,7 @@ export function AppShell() {
 
   const { data: inboxData } = useDriveInbox();
   const { data: failedVoiceData } = useFailedVoiceJobs();
+  const pendingRequestCount = usePendingCount().data ?? 0;
   const inboxCount = inboxData?.files?.length ?? 0;
   const failedVoiceCount = failedVoiceData?.jobs?.length ?? 0;
   const failedDriveCount = (inboxData?.files ?? []).filter((f) => f.status === "failed").length;
@@ -86,6 +90,11 @@ export function AppShell() {
                   {item.to === "/upload" && inboxCount > 0 && (
                     <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                       {inboxCount}
+                    </span>
+                  )}
+                  {item.to === "/requests" && pendingRequestCount > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {pendingRequestCount}
                     </span>
                   )}
                 </>
