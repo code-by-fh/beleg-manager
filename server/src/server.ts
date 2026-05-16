@@ -35,12 +35,17 @@ async function onFirstLogin(userId: string) {
 const app = createApp({ config, db, gemini, pending, healthRepo, onFirstLogin });
 const poller = startInboxPoller({ config, userRepo, gemini, healthRepo });
 const gmailPoller = startGmailPoller({ config, userRepo, db, healthRepo });
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received, shutting down");
-  poller.stop();
-  gmailPoller.stop();
-});
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   logger.info({ port: config.port, env: config.nodeEnv }, "server started");
 });
+
+function shutdown() {
+  logger.info("shutting down");
+  poller.stop();
+  gmailPoller.stop();
+  server.close();
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

@@ -64,9 +64,7 @@ export function buildAdminRouter(
           if (!localResult.success) {
             allSuccess = false;
           }
-          console.log(
-            `[factory-reset] userId=${userId} localData=${localResult.success}`
-          );
+          console.log(`[factory-reset] userId=${userId} localData=${localResult.success}`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           results.localData = {
@@ -101,9 +99,7 @@ export function buildAdminRouter(
             if (!driveResult.success) {
               allSuccess = false;
             }
-            console.log(
-              `[factory-reset] userId=${userId} googleDrive=${driveResult.success}`
-            );
+            console.log(`[factory-reset] userId=${userId} googleDrive=${driveResult.success}`);
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -112,9 +108,7 @@ export function buildAdminRouter(
             message,
           };
           allSuccess = false;
-          console.error(
-            `[factory-reset] userId=${userId} googleDrive failed: ${message}`
-          );
+          console.error(`[factory-reset] userId=${userId} googleDrive failed: ${message}`);
         }
       }
 

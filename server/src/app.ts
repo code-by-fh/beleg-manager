@@ -50,11 +50,18 @@ export function createApp(deps: AppDeps): Express {
   app.disable("x-powered-by");
   app.use(pinoHttp({
     logger,
-    redact: ["req.headers.cookie", "req.headers.authorization"],
     customLogLevel: (_req, res) => {
       if (res.statusCode >= 500) return "error";
       if (res.statusCode >= 400) return "warn";
       return "info";
+    },
+    customSuccessMessage: (req, res, responseTime) =>
+      `${req.method} ${req.url} ${res.statusCode} ${responseTime}ms`,
+    customErrorMessage: (req, res, err) =>
+      `${req.method} ${req.url} ${res.statusCode} ${err.message}`,
+    serializers: {
+      req: () => undefined as never,
+      res: () => undefined as never,
     },
   }));
   app.use(cors({ origin: deps.config.clientOrigin, credentials: true }));
