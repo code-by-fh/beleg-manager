@@ -314,7 +314,7 @@ export function buildBankRouter(deps: BankDeps): Router {
   router.delete("/transactions", (req, res, next) => {
     try {
       const userId = req.session.userId!;
-      const deleted = txRepo.clearByUser(userId);
+      const deleted = txRepo.deleteByRange(userId, "1970-01-01", "9999-12-31");
       res.json({ ok: true, deleted });
     } catch (err) {
       next(err);
