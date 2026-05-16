@@ -22,6 +22,7 @@ change.
 - Implemented user-configurable start page after login.
 - Implemented multi-tenant cross-user split requests with receipt proxy preview and user search.
 - Implemented system health monitoring page at /monitoring with service health cards for Drive Inbox Poller, Gmail Poller, Telegram Bot, and Gemini AI Extraction.
+- Implemented persistent ING CSV import with AES-256-GCM encryption, deduplication with detail feedback, monthly/date-range filtering, individual and range deletion, and removal of the "Abgleich abschließen" button.
 
 ## In Progress
 
@@ -45,6 +46,9 @@ change.
 - Drive File ID is extracted from `ReceiptRow.driveLink` URL on the client side (`/file/d/{id}` pattern).
 - `service_health` SQLite table tracks last-run status per service (upsert by `service_name`). Each service (Drive Inbox Poller, Gmail Poller, Telegram Bot, Gemini) writes health after every run/call. Frontend polls `GET /api/monitoring/health` every 30s via TanStack Query.
 - Fixed pre-existing TypeScript error: `trinkgeld` was missing from `ExtractionZ` schema in `gemini/schema.ts`.
+- `bank_transactions` `haendler` and `verwendungszweck` fields are now AES-256-GCM encrypted at rest (key via `BANK_ENCRYPTION_KEY` env var; graceful plaintext fallback when key is absent for dev).
+- App-layer dedup in `getDeduplicateKeys()` decrypts existing haendler values in-memory to build a comparison Set before each import (DB unique index retained as race-condition guard).
+- Client-side filtering in Kontoabgleich via `useMemo`; single API query fetches all transactions, month dropdown and date range filter computed locally.
 
 ## Session Notes
 
