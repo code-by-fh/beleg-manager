@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { randomUUID } from "node:crypto";
+import { logger } from "../logger.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
@@ -15,11 +16,19 @@ export type PollerDeps = {
   gemini: GeminiClient;
 };
 
+const log = logger.child({ module: "inbox-poller" });
+
 export function startInboxPoller(deps: PollerDeps): { stop: () => void } {
+  log.info("inbox poller started");
   const task = cron.schedule("*/5 * * * *", () => {
-    runOnce(deps).catch((err) => console.error("[inbox-poller]", err));
+    runOnce(deps).catch((err) => log.error({ err }, "poll run failed"));
   });
-  return { stop: () => task.stop() };
+  return {
+    stop: () => {
+      log.info("inbox poller stopped");
+      task.stop();
+    },
+  };
 }
 
 export async function runOnce(deps: PollerDeps): Promise<{ processed: number; failed: number }> {
@@ -48,7 +57,7 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
               const r = await archiveExistingFile(drive, file.id, user.driveArchiveFolderId, datum);
               driveLink = r.driveLink;
             } catch (archErr) {
-              console.error("[inbox-poller] archive failed, continuing without link:", archErr);
+              log.warn({ err: archErr, fileId: file.id }, "archive failed, continuing without link");
             }
           }
 
@@ -72,8 +81,10 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
           }
 
           await setAppProperties(drive, file.id, { bm_status: "confirmed" }).catch(() => undefined);
+          log.debug({ fileId: file.id, userId: user.id }, "file processed");
           processed++;
         } catch (err) {
+          log.error({ err, fileId: file.id, userId: user.id }, "file processing failed");
           await setAppProperties(drive, file.id, {
             bm_status: "failed",
             bm_error: String((err as Error).message ?? err).slice(0, 200),
@@ -82,8 +93,9 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
         }
       }
     } catch (err) {
-      console.error(`[inbox-poller] user ${user.id}:`, err);
+      log.error({ err, userId: user.id }, "user poll failed");
     }
   }
+  log.info({ processed, failed }, "run complete");
   return { processed, failed };
 }

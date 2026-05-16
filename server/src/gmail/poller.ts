@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { google } from "googleapis";
+import { logger } from "../logger.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
@@ -13,6 +14,8 @@ export type GmailPollerDeps = {
   db: Db;
 };
 
+const log = logger.child({ module: "gmail-poller" });
+
 export function startGmailPoller(deps: GmailPollerDeps): { stop: () => void } {
   const isProcessedStmt = deps.db.prepare<[string], { 1: number }>(
     "SELECT 1 FROM gmail_processed_messages WHERE message_id = ?"
@@ -24,10 +27,16 @@ export function startGmailPoller(deps: GmailPollerDeps): { stop: () => void } {
   const checkProcessed = (id: string) => !!isProcessedStmt.get(id);
   const markProcessed = (id: string, userId: string, ts: number) => markProcessedStmt.run(id, userId, ts);
 
+  log.info("gmail poller started");
   const task = cron.schedule("*/5 * * * *", () => {
-    runOnce(deps, checkProcessed, markProcessed).catch((err) => console.error("[gmail-poller]", err));
+    runOnce(deps, checkProcessed, markProcessed).catch((err) => log.error({ err }, "poll run failed"));
   });
-  return { stop: () => task.stop() };
+  return {
+    stop: () => {
+      log.info("gmail poller stopped");
+      task.stop();
+    },
+  };
 }
 
 export async function runOnce(
@@ -92,16 +101,17 @@ export async function runOnce(
 
           markProcessed(msg.id, user.id, Date.now());
         } catch (err) {
-          console.error(`[gmail-poller] message ${msg.id}:`, err);
+          log.error({ err, messageId: msg.id, userId: user.id }, "message processing failed");
           markProcessed(msg.id, user.id, Date.now());
           failed++;
         }
       }
     } catch (err) {
-      console.error(`[gmail-poller] user ${user.id}:`, err);
+      log.error({ err, userId: user.id }, "user poll failed");
     }
   }
 
+  log.info({ processed, failed }, "run complete");
   return { processed, failed };
 }
 

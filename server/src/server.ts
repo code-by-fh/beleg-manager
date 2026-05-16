@@ -2,6 +2,7 @@ import { config as dotenvConfig } from "dotenv";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 dotenvConfig({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../.env") });
+import { logger } from "./logger.js";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { openDatabase } from "./db/index.js";
@@ -32,8 +33,12 @@ async function onFirstLogin(userId: string) {
 const app = createApp({ config, db, gemini, pending, onFirstLogin });
 const poller = startInboxPoller({ config, userRepo, gemini });
 const gmailPoller = startGmailPoller({ config, userRepo, db });
-process.on("SIGTERM", () => { poller.stop(); gmailPoller.stop(); });
+process.on("SIGTERM", () => {
+  logger.info("SIGTERM received, shutting down");
+  poller.stop();
+  gmailPoller.stop();
+});
 
 app.listen(config.port, () => {
-  console.log(`server listening on http://localhost:${config.port}`);
+  logger.info({ port: config.port, env: config.nodeEnv }, "server started");
 });

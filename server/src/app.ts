@@ -3,8 +3,10 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import passport from "passport";
+import { pinoHttp } from "pino-http";
 import path from "node:path";
 import url from "node:url";
+import { logger } from "./logger.js";
 import type { Config } from "./config.js";
 import { buildSessionMiddleware } from "./session/store.js";
 import type { Db } from "./db/index.js";
@@ -39,6 +41,15 @@ export function createApp(deps: AppDeps): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
+  app.use(pinoHttp({
+    logger,
+    redact: ["req.headers.cookie", "req.headers.authorization"],
+    customLogLevel: (_req, res) => {
+      if (res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+  }));
   app.use(cors({ origin: deps.config.clientOrigin, credentials: true }));
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json({ limit: "1mb" }));
@@ -88,7 +99,7 @@ export function createApp(deps: AppDeps): Express {
   }
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error("[error]", err);
+    logger.error({ err }, "unhandled error");
     res.status(500).json({ error: err.message ?? "internal error" });
   });
 

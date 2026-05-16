@@ -1,8 +1,10 @@
 import { GoogleGenerativeAI, type Schema } from "@google/generative-ai";
+import { logger } from "../logger.js";
 import { ExtractionZ, GEMINI_RESPONSE_SCHEMA, emptyExtraction, type Extraction } from "./schema.js";
 import { SYSTEM_PROMPT, USER_PROMPT_PHOTO, USER_PROMPT_VOICE, USER_PROMPT_PHOTO_PLUS_VOICE } from "./prompts.js";
 
 const MODEL_NAME = "gemini-2.5-flash";
+const log = logger.child({ module: "gemini" });
 
 export type GeminiClient = {
   extractFromPhoto(image: { mimeType: string; buffer: Buffer }, transcript?: string): Promise<Extraction>;
@@ -20,16 +22,21 @@ export function createGeminiClient(apiKey: string): GeminiClient {
     },
   });
 
-  async function generateAndParse(parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>): Promise<Extraction> {
+  async function generateAndParse(
+    source: "photo" | "transcript",
+    parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
+  ): Promise<Extraction> {
+    const start = Date.now();
     try {
       const res = await model.generateContent({ contents: [{ role: "user", parts }] });
       const text = res.response.text();
       if (!text) return emptyExtraction();
       const json = JSON.parse(text);
       const parsed = ExtractionZ.safeParse(json);
+      log.info({ source, durationMs: Date.now() - start }, "extraction complete");
       return parsed.success ? parsed.data : emptyExtraction();
     } catch (err) {
-      console.error("[gemini] extraction failed:", err);
+      log.error({ err, source, durationMs: Date.now() - start }, "extraction failed");
       return emptyExtraction();
     }
   }
@@ -37,13 +44,13 @@ export function createGeminiClient(apiKey: string): GeminiClient {
   return {
     async extractFromPhoto(image, transcript) {
       const userText = transcript ? USER_PROMPT_PHOTO_PLUS_VOICE(transcript) : USER_PROMPT_PHOTO;
-      return generateAndParse([
+      return generateAndParse("photo", [
         { inlineData: { mimeType: image.mimeType, data: image.buffer.toString("base64") } },
         { text: userText },
       ]);
     },
     async extractFromTranscript(transcript) {
-      return generateAndParse([{ text: USER_PROMPT_VOICE(transcript) }]);
+      return generateAndParse("transcript", [{ text: USER_PROMPT_VOICE(transcript) }]);
     },
   };
 }
