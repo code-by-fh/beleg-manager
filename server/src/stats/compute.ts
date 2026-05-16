@@ -87,7 +87,8 @@ export function computeTopMerchants(rows: ReceiptRow[], limit = 6): Array<{ haen
 export function computePaymentMethods(rows: ReceiptRow[]): Array<{ methode: string; total: number; count: number }> {
   const map = new Map<string, { total: number; count: number }>();
   for (const r of rows) {
-    const m = r.zahlungsmethode || "Unbekannt";
+    const raw = r.zahlungsmethode || "Unbekannt";
+    const m = (raw === "Karte" || raw === "Kreditkarte") ? "(Kredit-)Karte" : raw;
     const cur = map.get(m) ?? { total: 0, count: 0 };
     map.set(m, { total: cur.total + r.betrag, count: cur.count + 1 });
   }

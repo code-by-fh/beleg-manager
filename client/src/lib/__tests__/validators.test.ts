@@ -9,7 +9,7 @@ describe("ReceiptFormZ", () => {
     mwst: 1,
     waehrung: "EUR",
     kategorie: "Restaurant",
-    zahlungsmethode: "Karte",
+    zahlungsmethode: "(Kredit-)Karte",
     rechnungsnummer: "",
   };
   it("accepts valid input", () => { expect(ReceiptFormZ.parse(valid)).toBeTruthy(); });

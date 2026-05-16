@@ -69,7 +69,7 @@ export function ReviewPage() {
     mwst:            extraction.mwst ?? 0,
     waehrung:        extraction.waehrung ?? "EUR",
     kategorie:       extraction.kategorie ?? "Sonstiges",
-    zahlungsmethode: extraction.zahlungsmethode ?? "Karte",
+    zahlungsmethode: extraction.zahlungsmethode ?? "(Kredit-)Karte",
     rechnungsnummer: extraction.rechnungsnummer ?? "",
   };
 

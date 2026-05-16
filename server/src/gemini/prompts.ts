@@ -9,7 +9,7 @@ Regeln:
 - "mwst" als ausgewiesener MwSt-Betrag (nicht der Prozentsatz). 0 wenn nicht ausgewiesen.
 - "waehrung" als ISO-4217-Code (EUR, USD, CHF, ...). Default EUR wenn nicht erkennbar.
 - "kategorie" als kurze deutsche Kategorie (Restaurant, Tankstelle, Büromaterial, Reise, Unterkunft, Software, Sonstiges).
-- "zahlungsmethode" einer von: Bar, Karte, Kreditkarte, Überweisung, PayPal, Sonstiges.
+- "zahlungsmethode" einer von: Bar, (Kredit-)Karte, Sonstiges.
 - Wenn ein Feld nicht erkennbar ist: null.`;
 
 export const USER_PROMPT_PHOTO = `Extrahiere die Felder aus dem angehängten Belegbild.`;

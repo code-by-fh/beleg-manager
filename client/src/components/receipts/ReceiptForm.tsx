@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReceiptFormZ, type ReceiptFormValues } from "@/lib/validators";
 
 const KATEGORIEN = ["Restaurant", "Tankstelle", "Büromaterial", "Reise", "Unterkunft", "Software", "Sonstiges"];
-const ZAHLUNGSMETHODEN = ["Karte", "Kreditkarte", "Bar", "Überweisung", "PayPal", "Sonstiges"];
+const ZAHLUNGSMETHODEN = ["(Kredit-)Karte", "Bar", "Sonstiges"];
 const WAEHRUNGEN = ["EUR", "USD", "CHF", "GBP"];
 
 export function ReceiptForm({
@@ -31,7 +31,7 @@ export function ReceiptForm({
       trinkgeld: initial.trinkgeld ?? 0,
       waehrung: initial.waehrung ?? "EUR",
       kategorie: initial.kategorie ?? "Sonstiges",
-      zahlungsmethode: initial.zahlungsmethode ?? "Karte",
+      zahlungsmethode: initial.zahlungsmethode ?? "(Kredit-)Karte",
       rechnungsnummer: initial.rechnungsnummer ?? "",
     },
   });
