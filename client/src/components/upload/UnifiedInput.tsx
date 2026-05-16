@@ -1,94 +1,34 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRef, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Camera, Mic, MicOff, Upload, Send, X, RotateCcw, Loader2 } from "lucide-react";
+import { Upload, Send, X, Loader2, Type } from "lucide-react";
 import { receiptsApi } from "@/api/receipts";
-import { createRecognizer, isSpeechRecognitionSupported, type SpeechController } from "@/lib/speechRecognition";
 import { cn } from "@/lib/utils";
-import { AIProcessingOverlay } from "./AIProcessingOverlay";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
 import { driveApi } from "@/api/drive";
+import { useQueryClient } from "@tanstack/react-query";
 import { Inbox } from "lucide-react";
 
-type InputMode = "idle" | "photo" | "camera" | "voice";
+type InputMode = "idle" | "photo" | "text";
 
 export function UnifiedInput() {
   const [mode, setMode] = useState<InputMode>("idle");
   const [file, setFile] = useState<File | null>(null);
-  const [snapshot, setSnapshot] = useState<Blob | null>(null);
-  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [finalText, setFinalText] = useState("");
-  const [interim, setInterim] = useState("");
+  const [textInput, setTextInput] = useState("");
   const [context, setContext] = useState("");
   const [busy, setBusy] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [speechSupported] = useState(isSpeechRecognitionSupported());
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { data: inboxData, isLoading: inboxLoading, isError: inboxError, error: inboxErrorInfo, refetch: refetchInbox } = useDriveInbox();
+  const qc = useQueryClient();
 
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const recRef    = useRef<SpeechController | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const navigate  = useNavigate();
-
-  useEffect(() => {
-    if (!speechSupported) return;
-    recRef.current = createRecognizer({
-      lang: "de-DE",
-      onResult: (r) => {
-        if (r.isFinal) {
-          setFinalText((p) => (p ? p + " " : "") + r.transcript.trim());
-          setInterim("");
-        } else {
-          setInterim(r.transcript);
-        }
-      },
-      onError: () => setRecording(false),
-      onEnd:   () => setRecording(false),
-    });
-  }, [speechSupported]);
-
-  useEffect(() => {
-    if (!recording) return;
-    const handleGlobalUp = () => stopRecording();
-    window.addEventListener("pointerup", handleGlobalUp);
-    return () => window.removeEventListener("pointerup", handleGlobalUp);
-  }, [recording]);
-
-  useEffect(() => {
-    if (mode !== "camera") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        setCameraError(null);
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (e) {
-        setCameraError(`Kamerazugriff verweigert: ${(e as Error).message}`);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
-  }, [mode]);
 
   function reset() {
     setMode("idle");
     setFile(null);
-    setSnapshot(null);
-    if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
-    setSnapshotUrl(null);
-    setRecording(false);
-    setFinalText(""); setInterim(""); setContext("");
-    setCameraError(null);
+    setTextInput("");
+    setContext("");
   }
 
   function handleFileSelect(files: FileList | null) {
@@ -96,57 +36,27 @@ export function UnifiedInput() {
     if (f) { setMode("photo"); setFile(f); }
   }
 
-  function startRecording(e: React.PointerEvent) {
-    if (!recRef.current || busy) return;
-    try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch (e) {}
-    setMode("voice");
-    setFinalText("");
-    setInterim("");
-    recRef.current.start();
-    setRecording(true);
-  }
-
-  function stopRecording() {
-    if (!recording) return;
-    recRef.current?.stop();
-    setRecording(false);
-    setTimeout(() => { submit(); }, 200);
-  }
-
-  function takePhoto() {
-    const video = videoRef.current, canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      setSnapshot(blob);
-      if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
-      setSnapshotUrl(URL.createObjectURL(blob));
-    }, "image/jpeg", 0.92);
-  }
-
   async function submit() {
     setBusy(true);
     try {
-      let res;
       if (mode === "photo" && file) {
-        res = await receiptsApi.upload(file, context || undefined);
-      } else if (mode === "camera" && snapshot) {
-        const f = new File([snapshot], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
-        res = await receiptsApi.upload(f, context || undefined);
-      } else if (mode === "voice") {
-        const transcript = (finalText + " " + interim).trim();
-        if (!transcript) { toast({ title: "Bitte zuerst etwas einsprechen." }); setBusy(false); return; }
-        res = await receiptsApi.voice(transcript);
-      } else return;
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName } });
+        await receiptsApi.upload(file, context || undefined);
+        toast({ title: "Beleg wird verarbeitet", description: "Er erscheint in Kürze unter Belege." });
+        reset();
+      } else if (mode === "text") {
+        if (!textInput.trim()) { toast({ title: "Bitte zuerst Text eingeben." }); setBusy(false); return; }
+        const res = await receiptsApi.voice(textInput.trim());
+        if (res.ok) {
+          toast({ title: "Beleg gespeichert" });
+          qc.invalidateQueries({ queryKey: ["receipts"] });
+        } else {
+          toast({ title: "Verarbeitung fehlgeschlagen", description: "Beleg erscheint unter Belege zur Nachbearbeitung." });
+          qc.invalidateQueries({ queryKey: ["failedVoiceJobs"] });
+        }
+        reset();
+      }
     } catch (e) {
-      toast({ title: "Verarbeitung fehlgeschlagen", description: String((e as Error).message) });
+      toast({ title: "Fehler", description: String((e as Error).message) });
     } finally {
       setBusy(false);
     }
@@ -156,7 +66,9 @@ export function UnifiedInput() {
     setBusyId(id);
     try {
       const res = await driveApi.importFile(id);
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName } });
+      // importFile still uses the review flow for manual drive imports
+      qc.invalidateQueries({ queryKey: ["driveInbox"] });
+      toast({ title: "Beleg importiert", description: res.fileName });
     } catch (e) {
       toast({ title: "Import fehlgeschlagen", description: String((e as Error).message) });
     } finally {
@@ -166,14 +78,10 @@ export function UnifiedInput() {
 
   const canSubmit =
     (mode === "photo" && !!file) ||
-    (mode === "camera" && !!snapshot) ||
-    (mode === "voice" && !!(finalText || interim));
+    (mode === "text" && !!textInput.trim());
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <AIProcessingOverlay isVisible={busy || !!busyId} />
-
-      {/* Hidden file input */}
       <input
         ref={inputRef}
         type="file"
@@ -182,13 +90,11 @@ export function UnifiedInput() {
         onChange={(e) => handleFileSelect(e.target.files)}
       />
 
-      {/* ── Sub-header when active ── */}
       {mode !== "idle" && (
         <div className="flex-shrink-0 border-b border-border/30 bg-white/40 dark:bg-white/5 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
           <span className="text-foreground font-medium text-sm">
             {mode === "photo" && "Foto hochladen"}
-            {mode === "camera" && "Kamera"}
-            {mode === "voice" && "Spracheingabe"}
+            {mode === "text" && "Text eingeben"}
           </span>
           <button
             onClick={reset}
@@ -199,7 +105,6 @@ export function UnifiedInput() {
         </div>
       )}
 
-      {/* ── Main content ── */}
       <div className="flex-1 min-h-0 overflow-auto">
 
         {/* IDLE */}
@@ -225,37 +130,20 @@ export function UnifiedInput() {
               </button>
 
               <button
-                onClick={() => setMode("camera")}
+                onClick={() => setMode("text")}
                 className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
               >
                 <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
-                  <Camera className="h-5 w-5 text-background" />
+                  <Type className="h-5 w-5 text-background" />
                 </div>
                 <div className="text-left">
-                  <p className="text-foreground font-medium text-sm">Mit Kamera</p>
-                  <p className="text-muted-foreground text-xs">Direkt fotografieren</p>
+                  <p className="text-foreground font-medium text-sm">Text eingeben</p>
+                  <p className="text-muted-foreground text-xs">Beleg als Text beschreiben</p>
                 </div>
               </button>
-
-              {speechSupported && (
-                <button
-                  onPointerDown={startRecording}
-                  onPointerUp={stopRecording}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
-                >
-                  <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
-                    <Mic className="h-5 w-5 text-background" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-foreground font-medium text-sm">Sprache</p>
-                    <p className="text-muted-foreground text-xs">Halten zum Sprechen</p>
-                  </div>
-                </button>
-              )}
             </div>
 
-            {/* ── Inbox Section ── */}
+            {/* Inbox Section */}
             <div className="w-full max-w-xs space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
@@ -362,129 +250,42 @@ export function UnifiedInput() {
                     : "bg-black/5 dark:bg-white/5 text-muted-foreground cursor-not-allowed"
                 )}
               >
+                {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Wird hochgeladen…</> : <><Send className="h-4 w-4" /> Erfassen</>}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TEXT */}
+        {mode === "text" && (
+          <div className="p-6 flex flex-col items-center gap-6">
+            <div className="w-full max-w-xs space-y-3">
+              <textarea
+                placeholder="z. B. Tankrechnung 48,50 EUR bei Shell am 15.05."
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                disabled={busy}
+                rows={5}
+                maxLength={500}
+                autoFocus
+                className="clay-input w-full px-4 py-3 text-sm resize-none leading-relaxed"
+              />
+              <button
+                onClick={submit}
+                disabled={!canSubmit || busy}
+                className={cn(
+                  "w-full h-14 rounded-[20px] flex items-center justify-center gap-2 font-bold transition-all duration-300",
+                  canSubmit && !busy
+                    ? "rounded-lg bg-foreground text-background"
+                    : "bg-black/5 dark:bg-white/5 text-muted-foreground cursor-not-allowed"
+                )}
+              >
                 {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Verarbeite…</> : <><Send className="h-4 w-4" /> Verarbeiten</>}
               </button>
             </div>
           </div>
         )}
-
-        {/* CAMERA */}
-        {mode === "camera" && (
-          <div className="h-full flex flex-col">
-            {cameraError ? (
-              <div className="flex-1 flex items-center justify-center px-6">
-                <div className="clay-card-static rounded-[32px] p-6 text-center space-y-3 max-w-xs">
-                  <Camera className="h-8 w-8 mx-auto text-red-400/70" />
-                  <p className="text-red-500 dark:text-red-400 text-sm">{cameraError}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="relative flex-1 bg-black overflow-hidden flex flex-col">
-                <div className="relative flex-1 overflow-hidden">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                  {snapshotUrl && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
-                      <img src={snapshotUrl} alt="Aufnahme" className="max-h-full rounded-2xl border-2 border-white/20 shadow-2xl" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-shrink-0 p-4 space-y-3 bg-black/40 backdrop-blur-md border-t border-white/10">
-                  <input
-                    placeholder="Optionaler Kontext…"
-                    value={context}
-                    onChange={(e) => setContext(e.target.value)}
-                    disabled={busy}
-                    maxLength={200}
-                    className="w-full rounded-xl px-4 py-2.5 text-sm bg-white/10 border border-white/15 text-white placeholder:text-white/40 outline-none focus:border-white/30 transition-all"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={takePhoto}
-                      disabled={busy}
-                      className="flex-1 h-12 rounded-xl flex items-center justify-center text-white/70 hover:text-white bg-white/10 hover:bg-white/15 transition-all"
-                    >
-                      <Camera className="h-5 w-5" />
-                    </button>
-                    {snapshot && (
-                      <button
-                        onClick={() => { setSnapshot(null); if (snapshotUrl) URL.revokeObjectURL(snapshotUrl); setSnapshotUrl(null); }}
-                        className="flex-1 h-12 rounded-xl flex items-center justify-center text-white/70 hover:text-white bg-white/10 hover:bg-white/15 transition-all"
-                      >
-                        <RotateCcw className="h-5 w-5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={submit}
-                      disabled={!canSubmit || busy}
-                      className={cn(
-                        "flex-1 h-12 rounded-xl flex items-center justify-center font-medium transition-all",
-                        canSubmit && !busy
-                          ? "bg-primary text-white hover:bg-primary/90"
-                          : "bg-white/10 text-white/30 cursor-not-allowed"
-                      )}
-                    >
-                      {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VOICE */}
-        {mode === "voice" && (
-          <div className="h-full flex flex-col items-center justify-center px-6 pb-4">
-            <div className="w-full max-w-xs space-y-6">
-              {/* Mic orb */}
-              <div className="flex flex-col items-center gap-3">
-                <div className={cn(
-                  "w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300",
-                  recording
-                    ? "bg-red-500/15 shadow-[0_0_40px_rgba(239,68,68,0.3)] animate-pulse"
-                    : "clay-card-static"
-                )}>
-                  <Mic className={cn("h-10 w-10 transition-colors", recording ? "text-red-500" : "text-muted-foreground")} />
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {recording ? "Aufnahme läuft…" : "Bereit"}
-                </p>
-              </div>
-
-              {/* Transcript */}
-              <div className="clay-card-static rounded-2xl p-4 min-h-[80px] flex flex-col justify-center">
-                {finalText || interim ? (
-                  <div className="space-y-1">
-                    <p className="text-foreground text-sm leading-relaxed">{finalText}</p>
-                    {interim && <p className="text-muted-foreground text-sm italic">{interim}</p>}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground/50 text-sm text-center">Transkript erscheint hier…</p>
-                )}
-              </div>
-
-              <button
-                onPointerDown={startRecording}
-                onPointerUp={stopRecording}
-                onContextMenu={(e) => e.preventDefault()}
-                disabled={busy}
-                className={cn(
-                  "w-full h-16 rounded-2xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-3",
-                  recording
-                    ? "bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)] scale-[0.98] text-white"
-                    : "rounded-lg bg-foreground text-background"
-                )}
-              >
-                {recording ? <MicOff className="h-6 w-6 animate-pulse" /> : <Mic className="h-6 w-6" />}
-                {recording ? "Loslassen zum Senden" : "Halten zum Sprechen"}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }
