@@ -70,4 +70,24 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
   addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
   addColumnIfMissing(db, "users", "start_page", "TEXT NOT NULL DEFAULT '/'");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS split_requests (
+      id            TEXT PRIMARY KEY,
+      from_user_id  TEXT NOT NULL,
+      to_user_id    TEXT NOT NULL,
+      receipt_id    TEXT NOT NULL,
+      receipt_meta  TEXT NOT NULL,
+      betrag        REAL NOT NULL,
+      nachricht     TEXT NOT NULL DEFAULT '',
+      status        TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','accepted','rejected','cancelled')),
+      created_at    INTEGER NOT NULL,
+      updated_at    INTEGER NOT NULL,
+      FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status)`);
 }
