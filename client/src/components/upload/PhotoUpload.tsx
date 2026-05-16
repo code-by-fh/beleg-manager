@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +12,15 @@ export function PhotoUpload() {
   const [transcript, setTranscript] = useState("");
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   async function submit() {
     if (!file) return toast({ title: "Bitte eine Datei wählen." });
     setBusy(true);
     try {
-      const res = await receiptsApi.upload(file, transcript || undefined);
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName } });
+      await receiptsApi.upload(file, transcript || undefined);
+      toast({ title: "Beleg wird verarbeitet", description: "Er erscheint in Kürze unter Belege." });
+      setFile(null);
+      setTranscript("");
     } catch (e) {
       toast({ title: "Upload fehlgeschlagen", description: String((e as Error).message) });
     } finally {

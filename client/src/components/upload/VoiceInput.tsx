@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,7 +14,6 @@ export function VoiceInput() {
   const [busy, setBusy] = useState(false);
   const recRef = useRef<SpeechController | null>(null);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!supported) return;
@@ -53,7 +51,13 @@ export function VoiceInput() {
     setBusy(true);
     try {
       const res = await receiptsApi.voice(transcript);
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction } });
+      if (res.ok) {
+        toast({ title: "Beleg gespeichert" });
+      } else {
+        toast({ title: "Verarbeitung fehlgeschlagen", description: "Beleg erscheint unter Belege zur Nachbearbeitung." });
+      }
+      setFinalText("");
+      setInterim("");
     } catch (e) {
       toast({ title: "Verarbeitung fehlgeschlagen", description: String((e as Error).message) });
     } finally {

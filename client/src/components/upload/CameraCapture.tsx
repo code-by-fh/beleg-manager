@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,7 +13,6 @@ export function CameraCapture() {
   const [snapshot, setSnapshot] = useState<Blob | null>(null);
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -62,8 +60,11 @@ export function CameraCapture() {
     setBusy(true);
     try {
       const file = new File([snapshot], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
-      const res = await receiptsApi.upload(file);
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName } });
+      await receiptsApi.upload(file);
+      toast({ title: "Beleg wird verarbeitet", description: "Er erscheint in Kürze unter Belege." });
+      setSnapshot(null);
+      if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
+      setSnapshotUrl(null);
     } catch (e) {
       toast({ title: "Upload fehlgeschlagen", description: String((e as Error).message) });
     } finally {

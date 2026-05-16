@@ -1,15 +1,27 @@
 import { api } from "./client";
-import type { PendingReceiptResponse, ReceiptRow } from "@/types/receipt";
+import type { ReceiptRow } from "@/types/receipt";
+
+export type VoiceResult =
+  | { ok: true }
+  | { ok: false; jobId: string };
+
+export type FailedVoiceJob = {
+  id: string;
+  userId: string;
+  transcript: string;
+  error: string;
+  createdAt: number;
+};
 
 export const receiptsApi = {
   upload: (file: File, transcript?: string) => {
     const fd = new FormData();
     fd.append("file", file);
     if (transcript) fd.append("transcript", transcript);
-    return api.postForm<PendingReceiptResponse>("/api/receipts/upload", fd);
+    return api.postForm<{ ok: true }>("/api/receipts/upload", fd);
   },
   voice: (transcript: string) =>
-    api.post<PendingReceiptResponse>("/api/receipts/voice", { transcript }),
+    api.post<VoiceResult>("/api/receipts/voice", { transcript }),
   confirm: (payload: {
     pendingId: string;
     datum: string;
@@ -41,4 +53,8 @@ export const receiptsApi = {
   },
   list: () => api.get<{ rows: ReceiptRow[] }>("/api/receipts"),
   delete: (id: string) => api.delete<{ ok: true }>(`/api/receipts/${id}`),
+  listFailedVoice: () =>
+    api.get<{ jobs: FailedVoiceJob[] }>("/api/receipts/failed-voice"),
+  retryVoice: (jobId: string) =>
+    api.post<{ ok: true }>(`/api/receipts/retry-voice/${jobId}`, {}),
 };
