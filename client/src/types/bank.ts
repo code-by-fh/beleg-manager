@@ -11,9 +11,16 @@ export type BankTransaction = {
   importedAt: number;
 };
 
+export type DuplicateInfo = {
+  buchungsdatum: string;
+  haendler: string;
+  betrag: number;
+};
+
 export type ImportResult = {
   imported: number;
   autoMatched: number;
   unmatched: number;
   parseErrors: string[];
+  duplicates: DuplicateInfo[];
 };

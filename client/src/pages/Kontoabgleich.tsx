@@ -201,7 +201,15 @@ export function KontoabgleichPage() {
   async function handleClear() {
     setBusyClear(true);
     try {
-      const res = await bankApi.clearTransactions();
+      if (transactions.length === 0) {
+        toast({ title: "Keine Transaktionen zum Löschen" });
+        setConfirmClear(false);
+        return;
+      }
+      const dates = transactions.map((t) => t.buchungsdatum).sort();
+      const from = dates[0]!;
+      const to = dates[dates.length - 1]!;
+      const res = await bankApi.deleteRange(from, to);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
       qc.invalidateQueries({ queryKey: ["splits"] });
       toast({ title: `${res.deleted} Transaktionen gelöscht` });
