@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X, HandCoins } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X, HandCoins, Activity } from "lucide-react";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
 import { usePendingCount } from "@/hooks/useSplitRequests";
 import { useFailedVoiceJobs } from "@/hooks/useFailedVoiceJobs";
@@ -14,8 +14,9 @@ const navItems = [
   { to: "/splits",   label: "Aufteilungen", icon: SplitSquareHorizontal   },
   { to: "/requests", label: "Anforderungen", icon: HandCoins              },
   { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight      },
-  { to: "/upload",   label: "Erfassen",     icon: PlusCircle              },
-  { to: "/settings", label: "Einstellungen", icon: Settings               },
+  { to: "/upload",      label: "Erfassen",      icon: PlusCircle  },
+  { to: "/monitoring",  label: "Monitoring",    icon: Activity    },
+  { to: "/settings",    label: "Einstellungen", icon: Settings    },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -27,6 +28,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/kontoabgleich":   "Kontoabgleich",
   "/review":          "Prüfen",
   "/settings":        "Einstellungen",
+  "/monitoring":      "Monitoring",
 };
 
 const moreItems = [
