@@ -1,21 +1,14 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
 
-# Build tools needed for better-sqlite3 native module
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy server configuration
 COPY package.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy server source
 COPY . .
-
-# Build the server
 RUN npm run build
 
 # Stage 2: Production
@@ -23,16 +16,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy server configuration
-COPY package.json ./
-
-# Install ONLY production dependencies
-RUN npm install --omit=dev
-
-# Copy built assets from builder
+# Copy node_modules from builder so native modules (better-sqlite3) don't need recompilation
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-# Create data directory for SQLite and set permissions
 RUN mkdir -p /app/data && chown -R node:node /app/data
 
 USER node
