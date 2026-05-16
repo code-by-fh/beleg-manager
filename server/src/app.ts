@@ -76,7 +76,6 @@ export function createApp(deps: AppDeps): Express {
     config: deps.config,
     userRepo,
     gemini: deps.gemini,
-    pending: deps.pending,
   }));
 
   if (deps.config.nodeEnv === "production") {
