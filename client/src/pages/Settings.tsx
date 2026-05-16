@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFactoryReset } from "@/hooks/useFactoryReset";
 import { useToast } from "@/components/ui/use-toast";
 import { settingsApi } from "@/api/settings";
-import { User, AlertTriangle, LogOut, Mail, Send, Layout, LayoutGrid, LayoutList } from "lucide-react";
+import { User, AlertTriangle, LogOut, Mail, Send, Layout, LayoutGrid, LayoutList, LayoutDashboard, Receipt, SplitSquareHorizontal, ArrowLeftRight, PlusCircle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function SettingsPage() {
@@ -36,12 +36,16 @@ export function SettingsPage() {
     queryFn: () => settingsApi.getUI(),
   });
   const [viewMode, setViewMode] = useState<"table" | "list">("table");
+  const [startPage, setStartPage] = useState("/");
   const [uiSaving, setUISaving] = useState(false);
 
   useEffect(() => {
     settingsApi.getGmail().then((r) => { setGmailEnabled(r.enabled); setGmailLabel(r.labelFilter); }).catch(() => {});
     settingsApi.getTelegram().then((r) => setTelegramConfigured(r.configured)).catch(() => {});
-    if (uiSettings) setViewMode(uiSettings.receiptsViewMode);
+    if (uiSettings) {
+      setViewMode(uiSettings.receiptsViewMode);
+      setStartPage(uiSettings.startPage);
+    }
   }, [uiSettings]);
 
   async function saveGmail() {
@@ -83,12 +87,16 @@ export function SettingsPage() {
     }
   }
 
-  async function saveUI(mode: "table" | "list") {
+  async function saveUI(mode?: "table" | "list", page?: string) {
     setUISaving(true);
-    setViewMode(mode);
+    const newMode = mode ?? viewMode;
+    const newPage = page ?? startPage;
+    if (mode) setViewMode(mode);
+    if (page) setStartPage(page);
     try {
-      await settingsApi.setUI(mode);
+      await settingsApi.setUI(newMode, newPage);
       qc.invalidateQueries({ queryKey: ["ui-settings"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
       toast({ title: "Anzeige-Einstellungen gespeichert" });
     } catch {
       toast({ title: "Speichern fehlgeschlagen", variant: "destructive" });
@@ -262,6 +270,33 @@ export function SettingsPage() {
                   </div>
                   <span className="text-xs font-bold">Liste (Mobil)</span>
                 </button>
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-border/40">
+                <p className="text-xs font-bold text-foreground">Startseite nach Login</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { path: "/", label: "Dashboard", icon: LayoutDashboard },
+                    { path: "/upload", label: "Erfassen", icon: PlusCircle },
+                    { path: "/receipts", label: "Belege", icon: Receipt },
+                    { path: "/kontoabgleich", label: "Abgleich", icon: ArrowLeftRight },
+                    { path: "/splits", label: "Splits", icon: SplitSquareHorizontal },
+                  ].map((p) => (
+                    <button
+                      key={p.path}
+                      onClick={() => saveUI(undefined, p.path)}
+                      disabled={uiSaving}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
+                        startPage === p.path
+                          ? "border-primary bg-primary/5 text-primary font-bold"
+                          : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border"
+                      }`}
+                    >
+                      <p.icon className="h-4 w-4" />
+                      <span className="text-[10px] truncate">{p.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

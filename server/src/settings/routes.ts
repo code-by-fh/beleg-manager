@@ -16,6 +16,7 @@ const TelegramSettingsBody = z.object({
 
 const UISettingsBody = z.object({
   receiptsViewMode: z.enum(["table", "list"]),
+  startPage: z.string().startsWith("/"),
 });
 
 export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
@@ -71,13 +72,14 @@ export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
     const user = userRepo.getById(req.session.userId!);
     res.json({
       receiptsViewMode: user?.receiptsViewMode ?? "table",
+      startPage: user?.startPage ?? "/",
     });
   });
 
   router.post("/ui", (req, res) => {
     const parsed = UISettingsBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid body" });
-    userRepo.setReceiptsViewMode(req.session.userId!, parsed.data.receiptsViewMode);
+    userRepo.setUISettings(req.session.userId!, parsed.data);
     res.json({ ok: true });
   });
 

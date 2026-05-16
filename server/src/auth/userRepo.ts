@@ -14,6 +14,7 @@ export type UserRow = {
   gmailLabelFilter: string;
   telegramBotToken: string | null;
   receiptsViewMode: "table" | "list";
+  startPage: string;
 };
 
 type UpsertInput = { id: string; email: string; name: string; refreshToken: string | null };
@@ -51,7 +52,8 @@ export function createUserRepo(db: Db) {
             gmail_polling_enabled AS gmailPollingEnabled,
             gmail_label_filter AS gmailLabelFilter,
             telegram_bot_token AS telegramBotToken,
-            receipts_view_mode AS receiptsViewMode
+            receipts_view_mode AS receiptsViewMode,
+            start_page AS startPage
            FROM users WHERE id = ?`
         )
         .get(id) as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number }) | undefined;
@@ -83,7 +85,8 @@ export function createUserRepo(db: Db) {
             gmail_polling_enabled AS gmailPollingEnabled,
             gmail_label_filter AS gmailLabelFilter,
             telegram_bot_token AS telegramBotToken,
-            receipts_view_mode AS receiptsViewMode
+            receipts_view_mode AS receiptsViewMode,
+            start_page AS startPage
            FROM users WHERE refresh_token IS NOT NULL`
         )
         .all() as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number })[];
@@ -99,8 +102,13 @@ export function createUserRepo(db: Db) {
     setTelegramBotToken(id: string, token: string | null): void {
       db.prepare("UPDATE users SET telegram_bot_token = @token WHERE id = @id").run({ id, token });
     },
-    setReceiptsViewMode(id: string, mode: "table" | "list"): void {
-      db.prepare("UPDATE users SET receipts_view_mode = @mode WHERE id = @id").run({ id, mode });
+    setUISettings(id: string, settings: { receiptsViewMode?: "table" | "list"; startPage?: string }): void {
+      if (settings.receiptsViewMode) {
+        db.prepare("UPDATE users SET receipts_view_mode = @mode WHERE id = @id").run({ id, mode: settings.receiptsViewMode });
+      }
+      if (settings.startPage) {
+        db.prepare("UPDATE users SET start_page = @page WHERE id = @id").run({ id, page: settings.startPage });
+      }
     },
 
     clearDriveFolderIds(id: string): void {

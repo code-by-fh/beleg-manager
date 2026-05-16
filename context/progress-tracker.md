@@ -19,6 +19,7 @@ change.
 - Removed receipts table from the dashboard to focus on analytics.
 - Implemented mobile-optimized "List/Card" view for the receipts page.
 - Added user-configurable default view mode (Table vs. List) in settings.
+- Implemented user-configurable start page after login.
 
 ## In Progress
 
@@ -34,8 +35,8 @@ change.
 
 ## Architecture Decisions
 
-- Added `receipts_view_mode` to the `users` table to persist UI preferences across sessions/devices.
-- Introduced `/api/settings/ui` endpoint to handle UI-specific user configurations.
+- Added `receipts_view_mode` and `start_page` to the `users` table to persist UI preferences across sessions/devices.
+- Updated `/api/settings/ui` and `/api/auth/me` endpoints to include UI-specific user configurations.
 
 ## Session Notes
 

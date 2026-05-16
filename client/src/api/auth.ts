@@ -1,6 +1,12 @@
 import { api } from "./client";
 
-export type Me = { id: string; email: string; name: string };
+export type Me = {
+  id: string;
+  email: string;
+  name: string;
+  receiptsViewMode: "table" | "list";
+  startPage: string;
+};
 
 export const authApi = {
   me: () => api.get<Me>("/api/auth/me"),

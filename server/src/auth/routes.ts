@@ -65,7 +65,13 @@ export function buildAuthRouter(config: Config, userRepo: UserRepo, onFirstLogin
       res.status(401).json({ error: "unauthorized" });
       return;
     }
-    res.json({ id: user.id, email: user.email, name: user.name });
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      receiptsViewMode: user.receiptsViewMode,
+      startPage: user.startPage,
+    });
   });
 
   return router;

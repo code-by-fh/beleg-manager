@@ -10,6 +10,7 @@ import { SplitsPage } from "@/pages/Splits";
 import { KontoabgleichPage } from "@/pages/Kontoabgleich";
 import { AppShell } from "@/components/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RootRedirect } from "@/components/RootRedirect";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/lib/theme";
 
@@ -25,7 +26,7 @@ export function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<RootRedirect />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/receipts" element={<ReceiptsPage />} />
               <Route path="/splits" element={<SplitsPage />} />
