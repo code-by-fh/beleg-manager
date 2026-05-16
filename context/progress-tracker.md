@@ -20,6 +20,7 @@ change.
 - Implemented mobile-optimized "List/Card" view for the receipts page.
 - Added user-configurable default view mode (Table vs. List) in settings.
 - Implemented user-configurable start page after login.
+- Implemented multi-tenant cross-user split requests with receipt proxy preview and user search.
 
 ## In Progress
 
@@ -37,6 +38,10 @@ change.
 
 - Added `receipts_view_mode` and `start_page` to the `users` table to persist UI preferences across sessions/devices.
 - Updated `/api/settings/ui` and `/api/auth/me` endpoints to include UI-specific user configurations.
+- Added `split_requests` SQLite table for cross-user Aufteilungsanforderungen. Cross-user coordination is app-level, stored in SQLite not Google Sheets.
+- Receipt previews served via server-side proxy using from_user's refresh token — to_user never gets direct Drive access.
+- User search endpoint (`GET /api/users/search`) returns only `{id, name, email}` — no internal fields ever exposed.
+- Drive File ID is extracted from `ReceiptRow.driveLink` URL on the client side (`/file/d/{id}` pattern).
 
 ## Session Notes
 
