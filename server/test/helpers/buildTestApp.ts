@@ -25,3 +25,4 @@ export function makeTestApp(overrides?: { gemini?: GeminiClient }) {
   const pending = createPendingStore({ ttlMs: 60_000 });
   return { app: createApp({ config: TEST_CONFIG, db, gemini, pending }), db, pending };
 }
+

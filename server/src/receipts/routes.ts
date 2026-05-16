@@ -5,14 +5,16 @@ import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import type { PendingStore } from "./pendingStore.js";
+import type { FailedVoiceRepo } from "./failedVoiceRepo.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "./types.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { uploadSingleImage } from "../middleware/upload.js";
 import { uploadRateLimit } from "../middleware/rateLimit.js";
 import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { driveFor } from "../google/drive.js";
+import { driveFor, uploadFile } from "../google/drive.js";
 import { sheetsFor, appendRow, readAllRows, updateRow, deleteRow, SHEET_TAB_NAME, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile, archiveBuffer } from "./archive.js";
+import { bootstrapUserDrive } from "../google/bootstrap.js";
 
 const VoiceBody = z.object({ transcript: z.string().min(1).max(4000) });
 
@@ -46,6 +48,7 @@ export type ReceiptsDeps = {
   userRepo: UserRepo;
   gemini: GeminiClient;
   pending: PendingStore;
+  failedVoice: FailedVoiceRepo;
 };
 
 export function buildReceiptsRouter(deps: ReceiptsDeps) {
@@ -55,17 +58,28 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
   router.post("/upload", uploadRateLimit, uploadSingleImage, async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ error: "file required" });
-      const transcript = typeof req.body?.transcript === "string" ? req.body.transcript : undefined;
-      const extraction = await deps.gemini.extractFromPhoto(
-        { mimeType: req.file.mimetype, buffer: req.file.buffer },
-        transcript
-      );
-      const pendingId = deps.pending.put({
-        userId: req.session.userId!,
-        source: { kind: "upload", mimeType: req.file.mimetype, buffer: req.file.buffer },
-        extraction,
+      const userId = req.session.userId!;
+      let user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token" });
+
+      if (!user.driveInboxFolderId) {
+        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        await bootstrapUserDrive(auth, userId, deps.userRepo);
+        user = deps.userRepo.getById(userId);
+      }
+      if (!user?.driveInboxFolderId) return res.status(409).json({ error: "Drive inbox nicht verfügbar" });
+
+      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      const drive = driveFor(auth);
+      const ext = req.file.mimetype === "application/pdf" ? "pdf" : req.file.mimetype.split("/")[1] ?? "bin";
+      const fileName = req.file.originalname || `beleg_${Date.now()}.${ext}`;
+      await uploadFile(drive, {
+        name: fileName,
+        mimeType: req.file.mimetype,
+        parentId: user.driveInboxFolderId,
+        body: req.file.buffer,
       });
-      res.json({ pendingId, extraction, fileName: req.file.originalname });
+      res.status(202).json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -75,13 +89,46 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     try {
       const parsed = VoiceBody.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
-      const extraction = await deps.gemini.extractFromTranscript(parsed.data.transcript);
-      const pendingId = deps.pending.put({
-        userId: req.session.userId!,
-        source: { kind: "voice" },
-        extraction,
-      });
-      res.json({ pendingId, extraction });
+
+      const userId = req.session.userId!;
+      const transcript = parsed.data.transcript;
+
+      let extraction;
+      try {
+        extraction = await deps.gemini.extractFromTranscript(transcript);
+      } catch (geminiErr) {
+        const jobId = deps.failedVoice.save({
+          userId,
+          transcript,
+          error: String((geminiErr as Error).message ?? geminiErr),
+        });
+        return res.json({ ok: false, jobId });
+      }
+
+      const user = deps.userRepo.getById(userId);
+      if (user?.sheetId) {
+        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        const sheets = sheetsFor(auth);
+        const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+        const row: ReceiptRow = {
+          id: uuidv4(),
+          datum,
+          haendler: extraction.haendler ?? "Unbekannt",
+          betrag: extraction.betrag ?? 0,
+          mwst: extraction.mwst ?? 0,
+          trinkgeld: extraction.trinkgeld ?? 0,
+          waehrung: extraction.waehrung ?? "EUR",
+          kategorie: extraction.kategorie ?? "Sonstiges",
+          zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+          rechnungsnummer: extraction.rechnungsnummer ?? "",
+          driveLink: "",
+          eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
+          erstelltAm: new Date().toISOString(),
+        };
+        await appendRow(sheets, user.sheetId, row);
+      }
+
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -120,7 +167,6 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         const r = await archiveExistingFile(drive, pending.source.fileId, user.driveArchiveFolderId, parsed.data.datum);
         driveLink = r.driveLink;
       }
-      // voice: no file to archive
 
       const row: ReceiptRow = {
         id: uuidv4(),
@@ -151,6 +197,55 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     res.json({ pendingId: entry.id, extraction: entry.extraction });
   });
 
+  router.get("/failed-voice", (req, res) => {
+    const userId = req.session.userId!;
+    const jobs = deps.failedVoice.listForUser(userId);
+    res.json({ jobs });
+  });
+
+  router.post("/retry-voice/:jobId", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const job = deps.failedVoice.getById(userId, req.params.jobId);
+      if (!job) return res.status(404).json({ error: "job not found" });
+
+      let extraction;
+      try {
+        extraction = await deps.gemini.extractFromTranscript(job.transcript);
+      } catch (geminiErr) {
+        return res.status(502).json({ error: String((geminiErr as Error).message ?? geminiErr) });
+      }
+
+      const user = deps.userRepo.getById(userId);
+      if (user?.sheetId) {
+        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        const sheets = sheetsFor(auth);
+        const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+        const row: ReceiptRow = {
+          id: uuidv4(),
+          datum,
+          haendler: extraction.haendler ?? "Unbekannt",
+          betrag: extraction.betrag ?? 0,
+          mwst: extraction.mwst ?? 0,
+          trinkgeld: extraction.trinkgeld ?? 0,
+          waehrung: extraction.waehrung ?? "EUR",
+          kategorie: extraction.kategorie ?? "Sonstiges",
+          zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+          rechnungsnummer: extraction.rechnungsnummer ?? "",
+          driveLink: "",
+          eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
+          erstelltAm: new Date().toISOString(),
+        };
+        await appendRow(sheets, user.sheetId, row);
+      }
+
+      deps.failedVoice.delete(userId, job.id);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/duplicate-check", async (req, res, next) => {
     try {
       const { haendler, betrag, datum } = req.query;
@@ -167,7 +262,6 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
       const sheets = sheetsFor(auth);
 
-      // Read only id/datum/haendler/betrag columns to minimize payload
       const scanRes = await sheets.spreadsheets.values.get({
         spreadsheetId: user.sheetId,
         range: `${SHEET_TAB_NAME}!A2:D`,
@@ -191,7 +285,6 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
 
       if (!matchedRaw) return res.json({ duplicate: null });
 
-      // Fetch full row only when a match is found
       const allRows = await readAllRows(sheets, user.sheetId);
       const duplicate = allRows.find((r) => r.id === matchedRaw[0]) ?? null;
 
@@ -252,19 +345,19 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       next(err);
     }
   });
-  
+
   router.delete("/:id", async (req, res, next) => {
     try {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
-  
+
       const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
       const sheets = sheetsFor(auth);
-  
+
       const ok = await deleteRow(sheets, user.sheetId, req.params.id);
       if (!ok) return res.status(404).json({ error: "receipt not found" });
-  
+
       res.json({ ok: true });
     } catch (err) {
       next(err);
