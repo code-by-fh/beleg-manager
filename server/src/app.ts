@@ -35,6 +35,7 @@ export function createApp(deps: AppDeps): Express {
   configurePassport(deps.config, userRepo);
 
   const app = express();
+  app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(cors({ origin: deps.config.clientOrigin, credentials: true }));
   app.use(helmet({ contentSecurityPolicy: false }));
