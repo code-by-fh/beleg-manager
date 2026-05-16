@@ -21,6 +21,7 @@ change.
 - Added user-configurable default view mode (Table vs. List) in settings.
 - Implemented user-configurable start page after login.
 - Implemented multi-tenant cross-user split requests with receipt proxy preview and user search.
+- Implemented system health monitoring page at /monitoring with service health cards for Drive Inbox Poller, Gmail Poller, Telegram Bot, and Gemini AI Extraction.
 
 ## In Progress
 
@@ -28,7 +29,7 @@ change.
 
 ## Next Up
 
-- Monitoring system for further UI improvements.
+- (open)
 
 ## Open Questions
 
@@ -42,6 +43,8 @@ change.
 - Receipt previews served via server-side proxy using from_user's refresh token — to_user never gets direct Drive access.
 - User search endpoint (`GET /api/users/search`) returns only `{id, name, email}` — no internal fields ever exposed.
 - Drive File ID is extracted from `ReceiptRow.driveLink` URL on the client side (`/file/d/{id}` pattern).
+- `service_health` SQLite table tracks last-run status per service (upsert by `service_name`). Each service (Drive Inbox Poller, Gmail Poller, Telegram Bot, Gemini) writes health after every run/call. Frontend polls `GET /api/monitoring/health` every 30s via TanStack Query.
+- Fixed pre-existing TypeScript error: `trinkgeld` was missing from `ExtractionZ` schema in `gemini/schema.ts`.
 
 ## Session Notes
 
