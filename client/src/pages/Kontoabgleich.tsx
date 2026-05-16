@@ -78,14 +78,12 @@ function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
 // ── Inline delete confirm cell ────────────────────────────────────────────────
 
 function DeleteCell({
-  txId,
   isConfirming,
   isBusy,
   onAskConfirm,
   onConfirm,
   onCancel,
 }: {
-  txId: string;
   isConfirming: boolean;
   isBusy: boolean;
   onAskConfirm: () => void;
@@ -239,14 +237,18 @@ export function KontoabgleichPage() {
     if (value === "all") {
       setFilterFrom("");
       setFilterTo("");
-    } else {
-      const [year, month] = value.split("-");
-      const from = `${year}-${month}-01`;
-      const lastDay = new Date(Number(year), Number(month), 0).getDate();
-      const to = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
-      setFilterFrom(from);
-      setFilterTo(to);
+      return;
     }
+    if (value === "custom") {
+      // Leave existing dates untouched
+      return;
+    }
+    const [year, month] = value.split("-");
+    const from = `${year}-${month}-01`;
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const to = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+    setFilterFrom(from);
+    setFilterTo(to);
   }
 
   function handleFromChange(value: string) {
@@ -602,7 +604,6 @@ export function KontoabgleichPage() {
                           <div className="flex items-center justify-end gap-2">
                             {deleteConfirmTx === tx.id ? (
                               <DeleteCell
-                                txId={tx.id}
                                 isConfirming
                                 isBusy={busyTx === tx.id}
                                 onAskConfirm={() => setDeleteConfirmTx(tx.id)}
@@ -627,7 +628,6 @@ export function KontoabgleichPage() {
                                   Ignorieren
                                 </Button>
                                 <DeleteCell
-                                  txId={tx.id}
                                   isConfirming={false}
                                   isBusy={busyTx === tx.id}
                                   onAskConfirm={() => setDeleteConfirmTx(tx.id)}
@@ -713,7 +713,6 @@ export function KontoabgleichPage() {
                             <div className="flex items-center justify-end gap-2">
                               {deleteConfirmTx === tx.id ? (
                                 <DeleteCell
-                                  txId={tx.id}
                                   isConfirming
                                   isBusy={busyTx === tx.id}
                                   onAskConfirm={() => setDeleteConfirmTx(tx.id)}
@@ -739,7 +738,6 @@ export function KontoabgleichPage() {
                                     Aufheben
                                   </Button>
                                   <DeleteCell
-                                    txId={tx.id}
                                     isConfirming={false}
                                     isBusy={busyTx === tx.id}
                                     onAskConfirm={() => setDeleteConfirmTx(tx.id)}
@@ -798,7 +796,6 @@ export function KontoabgleichPage() {
                           <div className="flex items-center justify-end gap-2">
                             {deleteConfirmTx === tx.id ? (
                               <DeleteCell
-                                txId={tx.id}
                                 isConfirming
                                 isBusy={busyTx === tx.id}
                                 onAskConfirm={() => setDeleteConfirmTx(tx.id)}
@@ -816,7 +813,6 @@ export function KontoabgleichPage() {
                                   Wiederherstellen
                                 </Button>
                                 <DeleteCell
-                                  txId={tx.id}
                                   isConfirming={false}
                                   isBusy={busyTx === tx.id}
                                   onAskConfirm={() => setDeleteConfirmTx(tx.id)}
