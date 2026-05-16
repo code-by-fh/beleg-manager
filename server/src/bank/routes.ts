@@ -356,6 +356,9 @@ export function buildBankRouter(deps: BankDeps): Router {
       }
       const userId = req.session.userId!;
       const { from, to } = parsed.data;
+      if (from > to) {
+        return res.status(400).json({ error: "'from' must be <= 'to'" });
+      }
       const deleted = txRepo.deleteByRange(userId, from, to);
       res.json({ ok: true, deleted });
     } catch (err) {
