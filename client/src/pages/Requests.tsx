@@ -14,22 +14,28 @@ export function RequestsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Aufteilungen & Anforderungen</h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+          <h1 className="text-2xl font-bold tracking-tight">Aufteilungen</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Aufteilungen deiner Belege und Anforderungen anderer Nutzer
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-2">
+        <Button 
+          onClick={() => setCreateOpen(true)} 
+          className="flex items-center justify-center gap-2 w-full sm:w-auto shadow-sm"
+        >
           <Plus size={16} />
           Neue Anforderung
         </Button>
       </div>
-      <Tabs defaultValue="aufteilungen">
-        <TabsList>
-          <TabsTrigger value="aufteilungen">Meine Aufteilungen</TabsTrigger>
-          <TabsTrigger value="incoming" className="flex items-center gap-2">
+
+      <Tabs defaultValue="aufteilungen" className="w-full">
+        <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+          <TabsTrigger value="aufteilungen" className="w-full sm:w-auto">
+            Meine Aufteilungen
+          </TabsTrigger>
+          <TabsTrigger value="incoming" className="w-full sm:w-auto flex items-center justify-center gap-2">
             Eingehend
             {count > 0 && (
               <span className="ml-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold leading-none">
@@ -38,10 +44,10 @@ export function RequestsPage() {
             )}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="aufteilungen" className="mt-4">
+        <TabsContent value="aufteilungen" className="mt-4 focus-visible:outline-none">
           <MyAufteilungenList />
         </TabsContent>
-        <TabsContent value="incoming" className="mt-4">
+        <TabsContent value="incoming" className="mt-4 focus-visible:outline-none">
           <IncomingList />
         </TabsContent>
       </Tabs>

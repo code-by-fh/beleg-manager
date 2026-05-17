@@ -46,13 +46,14 @@ export const receiptsApi = {
     rechnungsnummer: string;
   }) => api.put<{ ok: true; row: ReceiptRow }>(`/api/receipts/${id}`, payload),
   getPending: (pendingId: string) =>
-    api.get<{ pendingId: string; extraction: import("@/types/receipt").Extraction }>(`/api/receipts/pending/${pendingId}`),
+    api.get<import("@/types/receipt").PendingReceiptResponse>(`/api/receipts/pending/${pendingId}`),
   checkDuplicate: (haendler: string, betrag: number, datum: string) => {
     const params = new URLSearchParams({ haendler, betrag: String(betrag), datum });
     return api.get<{ duplicate: ReceiptRow | null }>(`/api/receipts/duplicate-check?${params}`);
   },
   list: () => api.get<{ rows: ReceiptRow[] }>("/api/receipts"),
   delete: (id: string) => api.delete<{ ok: true }>(`/api/receipts/${id}`),
+  deletePending: (id: string) => api.delete<{ ok: true }>(`/api/receipts/pending/${id}`),
   listFailedVoice: () =>
     api.get<{ jobs: FailedVoiceJob[] }>("/api/receipts/failed-voice"),
   retryVoice: (jobId: string) =>

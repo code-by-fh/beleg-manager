@@ -7,7 +7,7 @@ import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { sheetsFor, readAllRows, readSplits } from "../google/sheets.js";
+import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { parseIngCsv } from "./csvParser.js";
 import { matchTransactions, type ReceiptForMatching } from "./matcher.js";
 import { createTransactionRepo, NotFoundError } from "./transactionRepo.js";
@@ -59,6 +59,61 @@ export function buildBankRouter(deps: BankDeps): Router {
   const txRepo = createTransactionRepo(deps.db);
   const router = Router();
   router.use(requireAuth);
+
+  // Matches pending split_requests against positive bank transactions by amount + date window.
+  // Returns the number of new links created.
+  function autoMatchSplitsForUser(userId: string): number {
+    const existingLinks = deps.db
+      .prepare("SELECT split_id, bank_tx_id FROM split_bank_links WHERE user_id = ?")
+      .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
+    const usedTxIds = new Set(existingLinks.map((l) => l.bank_tx_id));
+    const linkedSplitIds = new Set(existingLinks.map((l) => l.split_id));
+
+    const unlinkedSplits = deps.db
+      .prepare(
+        `SELECT id, betrag, created_at FROM split_requests
+         WHERE from_user_id = ? AND status IN ('pending', 'accepted')`
+      )
+      .all(userId) as Array<{ id: string; betrag: number; created_at: number }>;
+
+    const candidates = unlinkedSplits.filter((s) => !linkedSplitIds.has(s.id));
+    if (candidates.length === 0) return 0;
+
+    const positiveTxs = txRepo
+      .listByUser(userId)
+      .filter((tx) => tx.betrag > 0 && tx.matchStatus !== "ignored");
+    if (positiveTxs.length === 0) return 0;
+
+    // Process largest splits first to avoid ambiguous matches
+    candidates.sort((a, b) => b.betrag - a.betrag);
+
+    const insertLink = deps.db.prepare(
+      "INSERT OR IGNORE INTO split_bank_links (split_id, user_id, bank_tx_id, created_at) VALUES (?, ?, ?, ?)"
+    );
+    let matched = 0;
+    const now = Date.now();
+
+    for (const split of candidates) {
+      const splitCents = Math.round(split.betrag * 100);
+      const splitDays = Math.floor(split.created_at / 86_400_000);
+
+      const matchingTx = positiveTxs.find((tx) => {
+        if (usedTxIds.has(tx.id)) return false;
+        if (Math.round(tx.betrag * 100) !== splitCents) return false;
+        const txDays = Math.floor(new Date(tx.buchungsdatum).getTime() / 86_400_000);
+        const diff = txDays - splitDays;
+        return diff >= 0 && diff <= 60;
+      });
+
+      if (matchingTx) {
+        insertLink.run(split.id, userId, matchingTx.id, now);
+        usedTxIds.add(matchingTx.id);
+        matched++;
+      }
+    }
+
+    return matched;
+  }
 
   // GET /api/bank/transactions?from=YYYY-MM-DD&to=YYYY-MM-DD
   router.get("/transactions", (req, res, next) => {
@@ -157,10 +212,14 @@ export function buildBankRouter(deps: BankDeps): Router {
         const autoMatched = rows.filter((r) => r.matchStatus === "matched").length;
         const unmatched = rows.filter((r) => r.matchStatus === "unmatched").length;
 
+        // Also auto-match incoming positive transactions against open split requests
+        const splitMatched = autoMatchSplitsForUser(userId);
+
         res.json({
           imported: rows.length,
           autoMatched,
           unmatched,
+          splitMatched,
           parseErrors,
           duplicates,
         });
@@ -274,57 +333,10 @@ export function buildBankRouter(deps: BankDeps): Router {
   });
 
   // POST /api/bank/auto-match-splits
-  router.post("/auto-match-splits", async (req, res, next) => {
+  router.post("/auto-match-splits", (req, res, next) => {
     try {
       const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.json({ matched: 0 });
-
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-      const sheets = sheetsFor(auth);
-      const splits = await readSplits(sheets, user.sheetId);
-
-      const existingLinks = deps.db
-        .prepare("SELECT split_id, bank_tx_id FROM split_bank_links WHERE user_id = ?")
-        .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
-      const linkedSplitIds = new Set(existingLinks.map((l) => l.split_id));
-      const usedTxIds = new Set(existingLinks.map((l) => l.bank_tx_id));
-
-      const unmatchedSplits = splits.filter((s) => !linkedSplitIds.has(s.splitId));
-      if (unmatchedSplits.length === 0) return res.json({ matched: 0 });
-
-      const positiveTxs = txRepo
-        .listByUser(userId)
-        .filter((tx) => tx.betrag > 0 && tx.matchStatus !== "ignored");
-
-      if (positiveTxs.length === 0) return res.json({ matched: 0 });
-      let matched = 0;
-
-      const sortedSplits = [...unmatchedSplits].sort((a, b) => b.betrag - a.betrag);
-
-      for (const split of sortedSplits) {
-        const splitCents = Math.round(split.betrag * 100);
-        const splitDays = Math.floor(new Date(split.datum).getTime() / 86_400_000);
-
-        const matchingTx = positiveTxs.find((tx) => {
-          if (usedTxIds.has(tx.id)) return false;
-          if (Math.round(tx.betrag * 100) !== splitCents) return false;
-          const txDays = Math.floor(new Date(tx.buchungsdatum).getTime() / 86_400_000);
-          const diff = txDays - splitDays;
-          return diff >= 0 && diff <= 60;
-        });
-
-        if (matchingTx) {
-          deps.db
-            .prepare(
-              "INSERT OR IGNORE INTO split_bank_links (split_id, user_id, bank_tx_id, created_at) VALUES (?, ?, ?, ?)"
-            )
-            .run(split.splitId, userId, matchingTx.id, Date.now());
-          usedTxIds.add(matchingTx.id);
-          matched++;
-        }
-      }
-
+      const matched = autoMatchSplitsForUser(userId);
       res.json({ matched });
     } catch (err) {
       next(err);

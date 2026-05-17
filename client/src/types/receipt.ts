@@ -31,6 +31,7 @@ export type PendingReceiptResponse = {
   pendingId: string;
   extraction: Extraction;
   fileName?: string;
+  mimeType?: string | null;
 };
 
 export type DriveInboxFile = {
@@ -39,6 +40,7 @@ export type DriveInboxFile = {
   mimeType: string;
   status: "new" | "pending_review" | "failed";
   extracted: Extraction | null;
+  error?: string | null;
 };
 
 

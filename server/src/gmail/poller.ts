@@ -30,7 +30,7 @@ export function startGmailPoller(deps: GmailPollerDeps): { stop: () => void } {
   const markProcessed = (id: string, userId: string, ts: number) => markProcessedStmt.run(id, userId, ts);
 
   log.info("gmail poller started");
-  const task = cron.schedule("*/5 * * * *", () => {
+  const task = cron.schedule("*/5 * * * * *", () => {
     runOnce(deps, checkProcessed, markProcessed)
       .then(({ processed, failed }) => {
         deps.healthRepo?.upsert({

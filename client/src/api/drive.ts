@@ -8,4 +8,5 @@ export const driveApi = {
   confirmManual: (fileId: string, values: ReceiptFormValues) =>
     api.post<{ ok: true; row: ReceiptRow }>(`/api/drive/inbox/${fileId}/confirm-manual`, values),
   reset: () => api.post<{ ok: boolean }>("/api/drive/reset"),
+  deleteInboxFile: (fileId: string) => api.delete<{ ok: true }>(`/api/drive/inbox/${fileId}`),
 };

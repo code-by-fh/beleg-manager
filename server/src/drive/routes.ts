@@ -9,9 +9,10 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
+import { sheetsFor, appendRow, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile } from "../receipts/archive.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
+import { cleanErrorMessage } from "../gemini/errors.js";
 
 export type DriveRoutesDeps = {
   config: Config;
@@ -47,6 +48,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
           mimeType: f.mimeType,
           status: f.appProperties?.bm_status ?? "new",
           extracted: f.appProperties?.bm_extracted_json ? JSON.parse(f.appProperties.bm_extracted_json) : null,
+          error: f.appProperties?.bm_error ?? null,
         }));
       res.json({ files: enriched });
     } catch (err) {
@@ -54,6 +56,29 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       if ((err as any).code === 401 || (err as any).code === 403) {
         return res.status((err as any).code).json({ error: "Google Drive Zugriff verweigert. Bitte erneut anmelden." });
       }
+      next(err);
+    }
+  });
+
+  router.get("/inbox/:fileId/preview", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+      const meta = await drive.files.get({ fileId: req.params.fileId, fields: "mimeType" });
+      const mimeType = meta.data.mimeType ?? "application/octet-stream";
+      const fileRes = await drive.files.get(
+        { fileId: req.params.fileId, alt: "media" },
+        { responseType: "stream" }
+      );
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      (fileRes.data as NodeJS.ReadableStream).pipe(res);
+    } catch (err) {
       next(err);
     }
   });
@@ -88,8 +113,18 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         return res.status(415).json({ error: `unsupported mime: ${file.mimeType}` });
       }
 
-      const buffer = await downloadFile(drive, file.id);
-      const extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });
+      let extraction;
+      try {
+        const buffer = await downloadFile(drive, file.id);
+        extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });
+      } catch (err) {
+        await setAppProperties(drive, file.id, {
+          bm_status: "failed",
+          bm_error: cleanErrorMessage(err),
+        }).catch(() => undefined);
+        throw err;
+      }
+
       const pendingId = deps.pending.put({
         userId,
         source: { kind: "drive", fileId: file.id, mimeType: file.mimeType },
@@ -98,8 +133,9 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       await setAppProperties(drive, file.id, {
         bm_status: "pending_review",
         bm_extracted_json: JSON.stringify(extraction),
+        bm_error: "",
       }).catch(() => undefined);
-      res.json({ pendingId, extraction, fileName: file.name });
+      res.json({ pendingId, extraction, fileName: file.name, mimeType: file.mimeType });
     } catch (err) {
       next(err);
     }
@@ -131,6 +167,16 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
 
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
+      const sheets = sheetsFor(auth);
+
+      const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
+        datum: parsed.data.datum,
+        haendler: parsed.data.haendler,
+        betrag: parsed.data.betrag,
+      });
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
+      }
 
       const { driveLink } = await archiveExistingFile(
         drive,
@@ -139,7 +185,6 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         parsed.data.datum,
       );
 
-      const sheets = sheetsFor(auth);
       const row: ReceiptRow = {
         id: uuidv4(),
         datum: parsed.data.datum,
@@ -160,6 +205,21 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
 
       res.json({ ok: true, row });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete("/inbox/:fileId", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token" });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+      await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }

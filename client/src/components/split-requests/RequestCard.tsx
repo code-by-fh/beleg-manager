@@ -43,33 +43,57 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
 
   return (
     <>
-      <Card>
-        <CardContent className="pt-4 flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-sm font-medium">{request.fromUser?.name ?? "Unbekannt"}</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">{request.fromUser?.email}</p>
+      <Card className="overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-shadow">
+        <CardContent className="p-4 sm:p-5 flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">
+                {request.fromUser?.name ?? "Unbekannt"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{request.fromUser?.email}</p>
             </div>
-            <Badge variant={STATUS_VARIANTS[request.status]}>{STATUS_LABELS[request.status]}</Badge>
+            <Badge 
+              variant={STATUS_VARIANTS[request.status]}
+              className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0"
+            >
+              {STATUS_LABELS[request.status]}
+            </Badge>
           </div>
-          <div className="flex gap-4 text-sm flex-wrap">
-            <span className="font-medium">{meta.haendler}</span>
-            <span className="text-[hsl(var(--muted-foreground))]">{formatDateIso(meta.datum)}</span>
-            <span className="ml-auto font-bold">{formatCurrency(request.betrag, meta.waehrung)}</span>
+
+          <div className="p-3 bg-muted/30 rounded-lg flex items-center justify-between gap-4 text-sm">
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground truncate">{meta.haendler}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{formatDateIso(meta.datum)}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <span className="font-bold text-base text-foreground">
+                {formatCurrency(request.betrag, meta.waehrung)}
+              </span>
+            </div>
           </div>
+
           {request.nachricht && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))] italic">„{request.nachricht}"</p>
+            <div className="px-3 py-2 bg-primary/5 rounded-lg border-l-2 border-primary/20">
+              <p className="text-xs text-muted-foreground italic">„{request.nachricht}"</p>
+            </div>
           )}
-          <div className="flex gap-2 pt-1 flex-wrap">
-            <Button size="sm" variant="outline" onClick={() => setPreviewOpen(true)}>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPreviewOpen(true)}
+              className="w-full sm:w-auto h-9 text-xs font-medium"
+            >
               Beleg ansehen
             </Button>
             {request.status === "pending" && (
-              <>
+              <div className="flex gap-2 flex-1 w-full sm:w-auto">
                 <Button
                   size="sm"
                   onClick={() => handleStatus("accepted")}
                   disabled={updateStatus.isPending}
+                  className="flex-1 sm:flex-none h-9 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/95"
                 >
                   Annehmen
                 </Button>
@@ -78,10 +102,11 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
                   variant="destructive"
                   onClick={() => handleStatus("rejected")}
                   disabled={updateStatus.isPending}
+                  className="flex-1 sm:flex-none h-9 text-xs font-medium"
                 >
                   Ablehnen
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </CardContent>
@@ -116,30 +141,49 @@ export function OutgoingRequestCard({ request }: OutgoingCardProps) {
   }
 
   return (
-    <Card>
-      <CardContent className="pt-4 flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-medium">{request.toUser?.name ?? "Unbekannt"}</p>
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">{request.toUser?.email}</p>
+    <Card className="overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="p-4 sm:p-5 flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">
+              {request.toUser?.name ?? "Unbekannt"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">{request.toUser?.email}</p>
           </div>
-          <Badge variant={STATUS_VARIANTS[request.status]}>{STATUS_LABELS[request.status]}</Badge>
+          <Badge 
+            variant={STATUS_VARIANTS[request.status]}
+            className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0"
+          >
+            {STATUS_LABELS[request.status]}
+          </Badge>
         </div>
-        <div className="flex gap-4 text-sm flex-wrap">
-          <span className="font-medium">{meta.haendler}</span>
-          <span className="text-[hsl(var(--muted-foreground))]">{formatDateIso(meta.datum)}</span>
-          <span className="ml-auto font-bold">{formatCurrency(request.betrag, meta.waehrung)}</span>
+
+        <div className="p-3 bg-muted/30 rounded-lg flex items-center justify-between gap-4 text-sm">
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground truncate">{meta.haendler}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{formatDateIso(meta.datum)}</p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <span className="font-bold text-base text-foreground">
+              {formatCurrency(request.betrag, meta.waehrung)}
+            </span>
+          </div>
         </div>
+
         {request.nachricht && (
-          <p className="text-xs text-[hsl(var(--muted-foreground))] italic">„{request.nachricht}"</p>
+          <div className="px-3 py-2 bg-primary/5 rounded-lg border-l-2 border-primary/20">
+            <p className="text-xs text-muted-foreground italic">„{request.nachricht}"</p>
+          </div>
         )}
-        <div className="flex gap-2 pt-1 flex-wrap">
+
+        <div className="flex flex-col sm:flex-row gap-2 pt-1">
           {request.status === "pending" && (
             <Button
               size="sm"
               variant="outline"
               onClick={handleCancel}
               disabled={updateStatus.isPending}
+              className="w-full sm:w-auto h-9 text-xs font-medium hover:bg-red-500/5 hover:text-red-500 hover:border-red-500/30"
             >
               Zurückziehen
             </Button>
@@ -150,6 +194,7 @@ export function OutgoingRequestCard({ request }: OutgoingCardProps) {
               variant="destructive"
               onClick={handleDelete}
               disabled={deleteRequest.isPending}
+              className="w-full sm:w-auto h-9 text-xs font-medium"
             >
               Löschen
             </Button>

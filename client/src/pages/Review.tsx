@@ -3,11 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ReceiptForm } from "@/components/receipts/ReceiptForm";
 import { useToast } from "@/components/ui/use-toast";
 import { receiptsApi } from "@/api/receipts";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Extraction, ReceiptRow } from "@/types/receipt";
-import { CheckCircle2, ArrowLeft, AlertTriangle } from "lucide-react";
+import { CheckCircle2, ArrowLeft, AlertTriangle, Trash2, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
-type LocationState = { extraction?: Extraction; fileName?: string } | null;
+type LocationState = { extraction?: Extraction; fileName?: string; mimeType?: string } | null;
 
 export function ReviewPage() {
   const { pendingId } = useParams<{ pendingId: string }>();
@@ -18,26 +20,48 @@ export function ReviewPage() {
   const [busy, setBusy] = useState(false);
   const [duplicate, setDuplicate] = useState<ReceiptRow | null>(null);
   const [fetchedExtraction, setFetchedExtraction] = useState<Extraction | null>(null);
+  const [fetchedMimeType, setFetchedMimeType] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // If navigated to directly (e.g. from Telegram link), fetch extraction from server
   useEffect(() => {
-    if (!pendingId || state?.extraction) return;
+    if (!pendingId) return;
+    if (state?.extraction) {
+      setFetchedMimeType(state.mimeType ?? null);
+      return;
+    }
     receiptsApi.getPending(pendingId)
-      .then((r) => setFetchedExtraction(r.extraction))
+      .then((r) => {
+        setFetchedExtraction(r.extraction);
+        setFetchedMimeType(r.mimeType ?? null);
+      })
       .catch(() => setFetchError(true));
-  }, [pendingId]);
+  }, [pendingId, state]);
 
   const extraction = state?.extraction ?? fetchedExtraction;
+  const mimeType = state?.mimeType ?? fetchedMimeType;
+
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleValuesChange = useCallback((values: { haendler: string; betrag: number; datum: string }) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!values.haendler || isNaN(values.betrag) || !values.datum) {
+      setDuplicate(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      receiptsApi.checkDuplicate(values.haendler, values.betrag, values.datum)
+        .then((r) => setDuplicate(r.duplicate))
+        .catch(() => setDuplicate(null));
+    }, 400);
+  }, []);
 
   useEffect(() => {
-    if (!extraction) return;
-    const { haendler, betrag, datum } = extraction;
-    if (!haendler || betrag == null || !datum) return;
-    receiptsApi.checkDuplicate(haendler, betrag, datum)
-      .then((r) => setDuplicate(r.duplicate))
-      .catch(() => {/* silent – duplicate check is non-critical */});
-  }, [extraction]);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   if (!pendingId || fetchError) {
     return (
@@ -73,9 +97,11 @@ export function ReviewPage() {
     rechnungsnummer: extraction.rechnungsnummer ?? "",
   };
 
+  const isVoiceEntry = !mimeType;
+
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-lg mx-auto px-4 py-6 pb-8 space-y-4">
+      <div className={`mx-auto px-4 py-6 pb-8 space-y-4 ${isVoiceEntry ? "max-w-lg" : "max-w-6xl"}`}>
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -98,36 +124,169 @@ export function ReviewPage() {
 
         {/* Duplicate warning */}
         {duplicate && (
-          <div className="flex items-start gap-2 rounded-2xl border border-yellow-400/40 bg-yellow-50/60 dark:bg-yellow-900/20 px-4 py-3">
-            <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              Mögliches Duplikat: <strong>{duplicate.haendler}</strong> · {duplicate.betrag} {duplicate.waehrung} · {duplicate.datum}
-            </p>
+          <div className="flex items-start gap-2 rounded-2xl border border-destructive/40 bg-destructive/5 dark:bg-destructive/10 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-destructive flex-1">
+              <p className="font-semibold">Duplikat erkannt: Dieser Beleg existiert bereits!</p>
+              <p className="mt-0.5">
+                <strong>{duplicate.haendler}</strong> · {duplicate.betrag} {duplicate.waehrung} · {duplicate.datum}
+              </p>
+              <p className="mt-1 text-[10px] opacity-80">Importieren ist blockiert, um Duplikate im Google Sheet zu verhindern.</p>
+            </div>
           </div>
         )}
 
-        {/* Form */}
-        <div className="clay-card-static rounded-[32px] p-6">
-          <ReceiptForm
-            initial={initial}
-            busy={busy}
-            onSubmit={async (values) => {
-              setBusy(true);
-              try {
-                await receiptsApi.confirm({ pendingId, ...values });
-                qc.invalidateQueries({ queryKey: ["receipts"] });
-                qc.invalidateQueries({ queryKey: ["stats"] });
-                qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
-                toast({ title: "Beleg gespeichert" });
-                navigate("/");
-              } catch (e) {
-                toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
-              } finally {
-                setBusy(false);
-              }
-            }}
-          />
-        </div>
+        {isVoiceEntry ? (
+          /* Form without preview (voice/text entry) */
+          <div className="clay-card-static rounded-[32px] p-6 space-y-4">
+            <ReceiptForm
+              initial={initial}
+              busy={busy}
+              onValuesChange={handleValuesChange}
+              submitDisabled={!!duplicate}
+              onSubmit={async (values) => {
+                setBusy(true);
+                try {
+                  await receiptsApi.confirm({ pendingId, ...values });
+                  qc.invalidateQueries({ queryKey: ["receipts"] });
+                  qc.invalidateQueries({ queryKey: ["stats"] });
+                  qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
+                  toast({ title: "Beleg gespeichert" });
+                  navigate("/");
+                } catch (e) {
+                  toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+
+            <div className="border-t border-border/20 pt-4">
+              <button
+                onClick={() => setShowDiscardConfirm(true)}
+                disabled={busy}
+                className="w-full h-10 rounded-xl border border-destructive/20 text-destructive hover:bg-destructive/5 font-semibold text-xs transition-all duration-300 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Beleg verwerfen (aus Warteschlange löschen)
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Side-by-side or stacked grid layout for uploads/Drive imports */
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            {/* Left/Right Column: Document Preview (Sticky on desktop) */}
+            <div className="md:col-span-6 space-y-4 md:sticky md:top-6">
+              <div className="clay-card-static overflow-hidden rounded-[32px] p-2 bg-[var(--surface)] border border-border/40">
+                <div className="relative aspect-[1/1.4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/10">
+                  {mimeType.startsWith("image/") ? (
+                    <img
+                      src={`/api/receipts/pending/${pendingId}/preview`}
+                      alt="Beleg Vorschau"
+                      className="max-h-full max-w-full object-contain select-none transition-transform duration-300 hover:scale-[1.02]"
+                    />
+                  ) : mimeType === "application/pdf" ? (
+                    <iframe
+                      src={`/api/receipts/pending/${pendingId}/preview`}
+                      className="w-full h-full rounded-[20px] border-0"
+                      title="PDF Vorschau"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground p-8">
+                      <FileText className="h-10 w-10" />
+                      <span className="text-xs font-medium">Beleg-Datei</span>
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 text-center">
+                  <a
+                    href={`/api/receipts/pending/${pendingId}/preview`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-primary/80 hover:text-primary transition-colors underline underline-offset-4 decoration-primary/20 hover:decoration-primary"
+                  >
+                    {mimeType === "application/pdf" ? "PDF in neuem Tab öffnen" : "Bild in neuem Tab öffnen"}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Right/Left Column: Form */}
+            <div className="md:col-span-6 space-y-4">
+              <div className="clay-card-static rounded-[32px] p-6 space-y-4">
+                <ReceiptForm
+                  initial={initial}
+                  busy={busy}
+                  onValuesChange={handleValuesChange}
+                  submitDisabled={!!duplicate}
+                  onSubmit={async (values) => {
+                    setBusy(true);
+                    try {
+                      await receiptsApi.confirm({ pendingId, ...values });
+                      qc.invalidateQueries({ queryKey: ["receipts"] });
+                      qc.invalidateQueries({ queryKey: ["stats"] });
+                      qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
+                      toast({ title: "Beleg gespeichert" });
+                      navigate("/");
+                    } catch (e) {
+                      toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+
+                <div className="border-t border-border/20 pt-4">
+                  <button
+                    onClick={() => setShowDiscardConfirm(true)}
+                    disabled={busy}
+                    className="w-full h-10 rounded-xl border border-destructive/20 text-destructive hover:bg-destructive/5 font-semibold text-xs transition-all duration-300 flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Beleg verwerfen (aus Warteschlange löschen)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Dialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Beleg verwerfen</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-sm">
+                Möchtest du diesen Beleg wirklich aus der Warteschlange verwerfen? Diese Aktion kann nicht rückgängig gemacht werden.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 mt-4">
+              <Button variant="ghost" onClick={() => setShowDiscardConfirm(false)} className="flex-1">
+                Abbrechen
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={async () => {
+                  setShowDiscardConfirm(false);
+                  setBusy(true);
+                  try {
+                    await receiptsApi.deletePending(pendingId);
+                    qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
+                    toast({ title: "Beleg verworfen" });
+                    navigate("/");
+                  } catch (e) {
+                    toast({ title: "Fehler beim Verwerfen", description: String((e as Error).message) });
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="flex-1"
+              >
+                Ja, verwerfen
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

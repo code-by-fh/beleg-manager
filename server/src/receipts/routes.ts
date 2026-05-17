@@ -10,11 +10,14 @@ import { SOURCE_KIND_TO_EINGABE_TYP } from "./types.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { uploadSingleImage } from "../middleware/upload.js";
 import { uploadRateLimit } from "../middleware/rateLimit.js";
-import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { driveFor, uploadFile } from "../google/drive.js";
-import { sheetsFor, appendRow, readAllRows, updateRow, deleteRow, SHEET_TAB_NAME, type ReceiptRow } from "../google/sheets.js";
+import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
+import { driveFor, uploadFile, setAppProperties } from "../google/drive.js";
+import { sheetsFor, appendRow, readAllRows, updateRow, deleteRow, SHEET_TAB_NAME, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile, archiveBuffer } from "./archive.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
+import { logger } from "../logger.js";
+
+const log = logger.child({ module: "receipts-routes" });
 
 const VoiceBody = z.object({ transcript: z.string().min(1).max(4000) });
 
@@ -60,16 +63,15 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       if (!req.file) return res.status(400).json({ error: "file required" });
       const userId = req.session.userId!;
       let user = deps.userRepo.getById(userId);
-      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token" });
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
 
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       if (!user.driveInboxFolderId) {
-        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
         await bootstrapUserDrive(auth, userId, deps.userRepo);
         user = deps.userRepo.getById(userId);
       }
       if (!user?.driveInboxFolderId) return res.status(409).json({ error: "Drive inbox nicht verfügbar" });
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
       const drive = driveFor(auth);
       const ext = req.file.mimetype === "application/pdf" ? "pdf" : req.file.mimetype.split("/")[1] ?? "bin";
       const fileName = req.file.originalname || `beleg_${Date.now()}.${ext}`;
@@ -107,9 +109,19 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
 
       const user = deps.userRepo.getById(userId);
       if (user?.sheetId) {
-        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
         const sheets = sheetsFor(auth);
         const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+
+        const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
+          datum,
+          haendler: extraction.haendler ?? "Unbekannt",
+          betrag: extraction.betrag ?? 0,
+        });
+        if (isDuplicate) {
+          return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
+        }
         const row: ReceiptRow = {
           id: uuidv4(),
           datum,
@@ -146,10 +158,23 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       if (!user?.driveArchiveFolderId || !user.sheetId) {
         return res.status(409).json({ error: "user drive not bootstrapped" });
       }
+      if (!user.refreshToken) {
+        return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      }
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
       const sheets = sheetsFor(auth);
+
+      // Block duplicate imports
+      const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
+        datum: parsed.data.datum,
+        haendler: parsed.data.haendler,
+        betrag: parsed.data.betrag,
+      });
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
+      }
 
       let driveLink = "";
       const baseName = `${parsed.data.datum}_${parsed.data.haendler}`.replace(/[^\w.-]/g, "_");
@@ -166,6 +191,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       } else if (pending.source.kind === "drive") {
         const r = await archiveExistingFile(drive, pending.source.fileId, user.driveArchiveFolderId, parsed.data.datum);
         driveLink = r.driveLink;
+        await setAppProperties(drive, pending.source.fileId, { bm_status: "confirmed" }).catch(() => undefined);
       }
 
       const row: ReceiptRow = {
@@ -194,7 +220,78 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     const userId = req.session.userId!;
     const entry = deps.pending.peek(userId, req.params.id);
     if (!entry) return res.status(404).json({ error: "pending not found or expired" });
-    res.json({ pendingId: entry.id, extraction: entry.extraction });
+    res.json({
+      pendingId: entry.id,
+      extraction: entry.extraction,
+      mimeType: entry.source && "mimeType" in entry.source ? entry.source.mimeType : null
+    });
+  });
+
+  router.get("/pending/:id/preview", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const entry = deps.pending.peek(userId, req.params.id);
+      if (!entry) return res.status(404).json({ error: "pending not found or expired" });
+
+      const source = entry.source;
+      if (source.kind === "upload" || source.kind === "telegram" || source.kind === "email") {
+        if ("buffer" in source && "mimeType" in source) {
+          res.setHeader("Content-Type", source.mimeType);
+          res.setHeader("Cache-Control", "no-store");
+          res.setHeader("X-Content-Type-Options", "nosniff");
+          res.end(source.buffer);
+          return;
+        }
+      } else if (source.kind === "drive") {
+        const user = deps.userRepo.getById(userId);
+        if (!user?.refreshToken) return res.status(503).json({ error: "user drive unavailable" });
+
+        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+        const drive = driveFor(auth);
+        const meta = await drive.files.get({ fileId: source.fileId, fields: "mimeType" });
+        const mimeType = meta.data.mimeType ?? "application/octet-stream";
+        const fileRes = await drive.files.get(
+          { fileId: source.fileId, alt: "media" },
+          { responseType: "stream" }
+        );
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        (fileRes.data as NodeJS.ReadableStream).pipe(res);
+        return;
+      }
+
+      res.status(400).json({ error: "preview not supported for this source" });
+    } catch (err) {
+      log.error({ err }, "pending-preview error");
+      next(err);
+    }
+  });
+
+  router.delete("/pending/:id", async (req, res, next) => {
+    try {
+      const pendingId = req.params.id;
+      const userId = req.session.userId!;
+      const pending = deps.pending.take(userId, pendingId);
+
+      if (pending) {
+        const source = pending.source;
+        if (source.kind === "drive") {
+          const user = deps.userRepo.getById(userId);
+          if (user?.refreshToken) {
+            const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+            const drive = driveFor(auth);
+            await setAppProperties(drive, source.fileId, { bm_status: "confirmed" }).catch((err) => {
+              log.error({ err, fileId: source.fileId }, "failed to set bm_status for pending delete");
+            });
+          }
+        }
+      }
+
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.get("/failed-voice", (req, res) => {
@@ -218,9 +315,19 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
 
       const user = deps.userRepo.getById(userId);
       if (user?.sheetId) {
-        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+        if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
         const sheets = sheetsFor(auth);
         const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+
+        const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
+          datum,
+          haendler: extraction.haendler ?? "Unbekannt",
+          betrag: extraction.betrag ?? 0,
+        });
+        if (isDuplicate) {
+          return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
+        }
         const row: ReceiptRow = {
           id: uuidv4(),
           datum,
@@ -258,8 +365,9 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.sheetId) return res.json({ duplicate: null });
+      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const sheets = sheetsFor(auth);
 
       const scanRes = await sheets.spreadsheets.values.get({
@@ -299,7 +407,8 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.sheetId) return res.json({ rows: [] });
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const sheets = sheetsFor(auth);
       const rows = await readAllRows(sheets, user.sheetId);
       res.json({ rows });
@@ -316,8 +425,9 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
+      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const sheets = sheetsFor(auth);
 
       const allRows = await readAllRows(sheets, user.sheetId);
@@ -351,8 +461,9 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
+      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
 
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const sheets = sheetsFor(auth);
 
       const ok = await deleteRow(sheets, user.sheetId, req.params.id);

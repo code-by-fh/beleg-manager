@@ -8,6 +8,7 @@ describe("ExtractionZ", () => {
       haendler: "Mayer",
       betrag: 45.5,
       mwst: 7.27,
+      trinkgeld: null,
       waehrung: "EUR",
       kategorie: "Restaurant",
       zahlungsmethode: "Karte",

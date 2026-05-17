@@ -7,9 +7,10 @@ import type { GeminiClient } from "../gemini/extract.js";
 import type { HealthRepo } from "../monitoring/repo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
+import { sheetsFor, appendRow, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile } from "../receipts/archive.js";
 import { SUPPORTED_MIME_TYPES, SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
+import { cleanErrorMessage } from "../gemini/errors.js";
 
 export type PollerDeps = {
   config: Config;
@@ -22,7 +23,7 @@ const log = logger.child({ module: "inbox-poller" });
 
 export function startInboxPoller(deps: PollerDeps): { stop: () => void } {
   log.info("inbox poller started");
-  const task = cron.schedule("*/5 * * * *", () => {
+  const task = cron.schedule("*/5 * * * * *", () => {
     runOnce(deps)
       .then(({ processed, failed }) => {
         deps.healthRepo?.upsert({
@@ -74,6 +75,17 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
 
           const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
 
+          if (user.sheetId) {
+            const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
+              datum,
+              haendler: extraction.haendler ?? "Unbekannt",
+              betrag: extraction.betrag ?? 0,
+            });
+            if (isDuplicate) {
+              throw new Error("Duplikat erkannt: Beleg existiert bereits im Sheet");
+            }
+          }
+
           let driveLink = "";
           if (user.driveArchiveFolderId) {
             try {
@@ -110,7 +122,7 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
           log.error({ err, fileId: file.id, userId: user.id }, "file processing failed");
           await setAppProperties(drive, file.id, {
             bm_status: "failed",
-            bm_error: String((err as Error).message ?? err).slice(0, 200),
+            bm_error: cleanErrorMessage(err),
           }).catch(() => undefined);
           failed++;
         }

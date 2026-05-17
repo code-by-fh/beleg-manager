@@ -2,36 +2,53 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, ArrowLeftRight, MoreHorizontal, X, HandCoins, Activity } from "lucide-react";
+import {
+  LayoutDashboard,
+  PlusCircle,
+  Settings,
+  Sun,
+  Moon,
+  LogOut,
+  Bell,
+  Zap,
+  Receipt,
+  ArrowLeftRight,
+  MoreHorizontal,
+  X,
+  HandCoins,
+  Activity,
+} from "lucide-react";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
 import { usePendingCount } from "@/hooks/useSplitRequests";
 import { useFailedVoiceJobs } from "@/hooks/useFailedVoiceJobs";
 import { useState } from "react";
 
 const navItems = [
-  { to: "/",         label: "Dashboard",    icon: LayoutDashboard },
-  { to: "/receipts", label: "Belege",       icon: Receipt         },
-  { to: "/requests", label: "Aufteilungen", icon: HandCoins       },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/receipts", label: "Belege", icon: Receipt },
+  { to: "/requests", label: "Aufteilungen", icon: HandCoins },
   { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight },
-  { to: "/upload",      label: "Erfassen",      icon: PlusCircle  },
-  { to: "/monitoring",  label: "Monitoring",    icon: Activity    },
-  { to: "/settings",    label: "Einstellungen", icon: Settings    },
+  { to: "/upload", label: "Erfassen", icon: PlusCircle },
+  { to: "/monitoring", label: "Monitoring", icon: Activity },
+  { to: "/settings", label: "Einstellungen", icon: Settings },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
-  "/":          "Dashboard",
-  "/receipts":  "Belege",
-  "/requests":  "Aufteilungen & Anforderungen",
-  "/upload":          "Erfassen",
-  "/kontoabgleich":   "Kontoabgleich",
-  "/review":          "Prüfen",
-  "/settings":        "Einstellungen",
-  "/monitoring":      "Monitoring",
+  "/": "Dashboard",
+  "/dashboard": "Dashboard",
+  "/receipts": "Belege",
+  "/requests": "Aufteilungen",
+  "/upload": "Erfassen",
+  "/kontoabgleich": "Kontoabgleich",
+  "/review": "Prüfen",
+  "/settings": "Einstellungen",
+  "/monitoring": "Monitoring",
 };
 
 const moreItems = [
+  { to: "/requests", label: "Aufteilungen", icon: HandCoins },
   { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight },
-  { to: "/settings",      label: "Einstellungen", icon: Settings       },
+  { to: "/settings", label: "Einstellungen", icon: Settings },
 ];
 
 export function AppShell() {
@@ -48,7 +65,9 @@ export function AppShell() {
   const pendingRequestCount = usePendingCount().data ?? 0;
   const inboxCount = inboxData?.files?.length ?? 0;
   const failedVoiceCount = failedVoiceData?.jobs?.length ?? 0;
-  const failedDriveCount = (inboxData?.files ?? []).filter((f) => f.status === "failed").length;
+  const failedDriveCount = (inboxData?.files ?? []).filter(
+    (f) => f.status === "failed",
+  ).length;
   const failedCount = failedVoiceCount + failedDriveCount;
 
   return (
@@ -57,8 +76,13 @@ export function AppShell() {
       <aside className="hidden md:flex flex-col w-60 bg-[var(--surface)] border-r border-[hsl(var(--border))] py-6 px-4 flex-shrink-0">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-2 mb-8">
-          <Zap className="w-5 h-5 text-[hsl(var(--foreground))]" strokeWidth={2} />
-          <span className="font-semibold text-base text-[hsl(var(--foreground))]">Beleg Manager</span>
+          <Zap
+            className="w-5 h-5 text-[hsl(var(--foreground))]"
+            strokeWidth={2}
+          />
+          <span className="font-semibold text-base text-[hsl(var(--foreground))]">
+            Beleg Manager
+          </span>
         </div>
 
         {/* Nav */}
@@ -67,13 +91,13 @@ export function AppShell() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === "/"}
+              end={item.to === "/" || item.to === "/dashboard"}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors duration-150",
                   isActive
                     ? "bg-[var(--active-bg)] text-[hsl(var(--foreground))] font-medium"
-                    : "text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))]",
                 )
               }
             >
@@ -101,15 +125,15 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-
-
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[hsl(var(--background))]">
         {/* Top Bar */}
         <header className="flex-shrink-0 h-16 px-8 flex items-center justify-between bg-[var(--surface)] border-b border-[hsl(var(--border))]">
-          <span className="text-base font-semibold text-[hsl(var(--foreground))]">{pageTitle}</span>
+          <span className="text-base font-semibold text-[hsl(var(--foreground))]">
+            {pageTitle}
+          </span>
 
           <div className="flex items-center gap-3">
             <Link
@@ -120,7 +144,10 @@ export function AppShell() {
               <span className="hidden sm:inline">Neuer Beleg</span>
             </Link>
 
-            <button aria-label="Benachrichtigungen" className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors relative">
+            <button
+              aria-label="Benachrichtigungen"
+              className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors relative"
+            >
               <Bell size={16} strokeWidth={1.5} />
               <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[hsl(var(--foreground))]" />
             </button>
@@ -130,7 +157,11 @@ export function AppShell() {
               className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
               aria-label="Theme wechseln"
             >
-              {theme === "dark" ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
+              {theme === "dark" ? (
+                <Sun size={16} strokeWidth={1.5} />
+              ) : (
+                <Moon size={16} strokeWidth={1.5} />
+              )}
             </button>
 
             <div className="relative">
@@ -144,16 +175,20 @@ export function AppShell() {
 
               {accountOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setAccountOpen(false)} 
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setAccountOpen(false)}
                   />
                   <div className="absolute right-0 mt-2 w-56 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-4 py-3 border-b border-[hsl(var(--border))] mb-1">
-                      <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">Konto</p>
-                      <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">{user?.email}</p>
+                      <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wider mb-1">
+                        Konto
+                      </p>
+                      <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">
+                        {user?.email}
+                      </p>
                     </div>
-                    
+
                     <Link
                       to="/settings"
                       onClick={() => setAccountOpen(false)}
@@ -164,7 +199,10 @@ export function AppShell() {
                     </Link>
 
                     <button
-                      onClick={() => { logout(); setAccountOpen(false); }}
+                      onClick={() => {
+                        logout();
+                        setAccountOpen(false);
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
                     >
                       <LogOut size={16} strokeWidth={1.5} />
@@ -194,8 +232,13 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(var(--border))]">
-              <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Weitere</span>
-              <button onClick={() => setMoreOpen(false)} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
+              <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                Weitere
+              </span>
+              <button
+                onClick={() => setMoreOpen(false)}
+                className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -210,17 +253,25 @@ export function AppShell() {
                     "flex items-center gap-3 px-4 py-3.5 text-sm transition-colors",
                     isActive
                       ? "bg-[var(--active-bg)] text-[hsl(var(--foreground))] font-medium"
-                      : "text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))]"
+                      : "text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))]",
                   )}
                 >
                   <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
-                  <span>{label}</span>
+                  <span className="flex-1">{label}</span>
+                  {to === "/requests" && pendingRequestCount > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {pendingRequestCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
             <div className="border-t border-[hsl(var(--border))]">
               <button
-                onClick={() => { logout(); setMoreOpen(false); }}
+                onClick={() => {
+                  logout();
+                  setMoreOpen(false);
+                }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[var(--hover-bg)] hover:text-[hsl(var(--foreground))] transition-colors"
               >
                 <LogOut size={18} strokeWidth={1.5} />
@@ -239,13 +290,14 @@ export function AppShell() {
       >
         <div className="flex px-2 py-2">
           {[
-            { to: "/",         label: "Dashboard", icon: LayoutDashboard },
-            { to: "/receipts", label: "Belege",    icon: Receipt         },
-            { to: "/upload",   label: "Erfassen",  icon: PlusCircle      },
+            { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { to: "/receipts", label: "Belege", icon: Receipt },
+            { to: "/upload", label: "Erfassen", icon: PlusCircle },
           ].map(({ to, label, icon: Icon }) => {
-            const isActive = to === "/"
-              ? location.pathname === "/"
-              : location.pathname.startsWith(to);
+            const isActive =
+              to === "/dashboard"
+                ? location.pathname === "/dashboard" || location.pathname === "/"
+                : location.pathname.startsWith(to);
             return (
               <Link
                 key={to}
@@ -256,10 +308,15 @@ export function AppShell() {
                   "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
                   isActive
                     ? "text-[hsl(var(--foreground))]"
-                    : "text-[hsl(var(--muted-foreground))]"
+                    : "text-[hsl(var(--muted-foreground))]",
                 )}
               >
-                <div className={cn("p-1.5 rounded-lg relative", isActive ? "bg-[var(--active-bg)]" : "")}>
+                <div
+                  className={cn(
+                    "p-1.5 rounded-lg relative",
+                    isActive ? "bg-[var(--active-bg)]" : "",
+                  )}
+                >
                   <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
                   {to === "/receipts" && failedCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] flex items-center justify-center rounded-full font-bold border-2 border-[var(--surface)]">
@@ -282,15 +339,21 @@ export function AppShell() {
             onClick={() => setMoreOpen((v) => !v)}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
-              moreOpen || moreItems.some((i) => location.pathname.startsWith(i.to))
+              moreOpen ||
+                moreItems.some((i) => location.pathname.startsWith(i.to))
                 ? "text-[hsl(var(--foreground))]"
-                : "text-[hsl(var(--muted-foreground))]"
+                : "text-[hsl(var(--muted-foreground))]",
             )}
           >
-            <div className={cn(
-              "p-1.5 rounded-lg",
-              moreOpen || moreItems.some((i) => location.pathname.startsWith(i.to)) ? "bg-[var(--active-bg)]" : ""
-            )}>
+            <div
+              className={cn(
+                "p-1.5 rounded-lg",
+                moreOpen ||
+                  moreItems.some((i) => location.pathname.startsWith(i.to))
+                  ? "bg-[var(--active-bg)]"
+                  : "",
+              )}
+            >
               <MoreHorizontal size={20} strokeWidth={1.5} />
             </div>
             <span>Mehr</span>

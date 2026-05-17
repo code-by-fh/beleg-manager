@@ -315,6 +315,33 @@ export async function appendRow(
   });
 }
 
+export async function checkDuplicateRow(
+  sheets: SheetsClient,
+  spreadsheetId: string,
+  row: { datum: string; haendler: string; betrag: number }
+): Promise<boolean> {
+  const scanRes = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${SHEET_TAB_NAME}!A2:D`,
+  });
+  const rawRows = (scanRes.data.values ?? []) as string[][];
+
+  const targetMs = new Date(row.datum).getTime();
+  const oneDayMs = 86_400_000;
+  const haendlerLc = row.haendler.trim().toLowerCase();
+
+  return rawRows.some((r) => {
+    const rowMs = new Date(r[1] ?? "").getTime();
+    const rowBetrag = parseFloat(String(r[3] ?? "").replace(",", "."));
+    return (
+      (r[2] ?? "").trim().toLowerCase() === haendlerLc &&
+      rowBetrag === row.betrag &&
+      !isNaN(rowMs) &&
+      Math.abs(rowMs - targetMs) <= oneDayMs
+    );
+  });
+}
+
 export async function readAllRows(
   sheets: SheetsClient,
   spreadsheetId: string

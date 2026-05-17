@@ -277,7 +277,7 @@ export function KontoabgleichPage() {
     try {
       const result = await bankApi.importCsv(file);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-      qc.invalidateQueries({ queryKey: ["splits"] });
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
       setLastImportErrors(result.parseErrors);
       setLastDuplicates(result.duplicates ?? []);
       toast({
@@ -321,7 +321,7 @@ export function KontoabgleichPage() {
     try {
       await bankApi.matchTransaction(tx.id, null);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-      qc.invalidateQueries({ queryKey: ["splits"] });
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
       toast({ title: "Zuordnung aufgehoben" });
     } catch {
       toast({ title: "Fehler", variant: "destructive" });
@@ -340,7 +340,7 @@ export function KontoabgleichPage() {
         bankApi.autoMatchSplits(),
       ]);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-      qc.invalidateQueries({ queryKey: ["splits"] });
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
       const parts = [];
       if (txResult.matched > 0)
         parts.push(`${txResult.matched} Ausgabe${txResult.matched !== 1 ? "n" : ""} abgeglichen`);
@@ -372,7 +372,7 @@ export function KontoabgleichPage() {
     try {
       await bankApi.deleteTransaction(id);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-      qc.invalidateQueries({ queryKey: ["splits"] });
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
       toast({ title: "Transaktion gelöscht" });
     } catch {
       toast({ title: "Fehler beim Löschen", variant: "destructive" });
@@ -397,7 +397,7 @@ export function KontoabgleichPage() {
     try {
       const res = await bankApi.deleteRange(rangeFrom, rangeTo);
       qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-      qc.invalidateQueries({ queryKey: ["splits"] });
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
       toast({ title: `${res.deleted} Transaktionen gelöscht` });
       setRangeDeleteOpen(false);
       setRangeFrom("");
@@ -914,7 +914,7 @@ export function KontoabgleichPage() {
         onAssigned={() => {
           setAssignTx(null);
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-          qc.invalidateQueries({ queryKey: ["splits"] });
+          qc.invalidateQueries({ queryKey: ["split-requests"] });
         }}
         alreadyMatchedReceiptIds={alreadyMatchedIds}
       />

@@ -276,26 +276,29 @@ export function SettingsPage() {
                 <p className="text-xs font-bold text-foreground">Startseite nach Login</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {[
-                    { path: "/", label: "Dashboard", icon: LayoutDashboard },
+                    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
                     { path: "/upload", label: "Erfassen", icon: PlusCircle },
                     { path: "/receipts", label: "Belege", icon: Receipt },
                     { path: "/kontoabgleich", label: "Abgleich", icon: ArrowLeftRight },
                     { path: "/splits", label: "Splits", icon: SplitSquareHorizontal },
-                  ].map((p) => (
-                    <button
-                      key={p.path}
-                      onClick={() => saveUI(undefined, p.path)}
-                      disabled={uiSaving}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
-                        startPage === p.path
-                          ? "border-primary bg-primary/5 text-primary font-bold"
-                          : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border"
-                      }`}
-                    >
-                      <p.icon className="h-4 w-4" />
-                      <span className="text-[10px] truncate">{p.label}</span>
-                    </button>
-                  ))}
+                  ].map((p) => {
+                    const isSelected = startPage === p.path || (p.path === "/dashboard" && startPage === "/");
+                    return (
+                      <button
+                        key={p.path}
+                        onClick={() => saveUI(undefined, p.path)}
+                        disabled={uiSaving}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
+                          isSelected
+                            ? "border-primary bg-primary/5 text-primary font-bold"
+                            : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border"
+                        }`}
+                      >
+                        <p.icon className="h-4 w-4" />
+                        <span className="text-[10px] truncate">{p.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

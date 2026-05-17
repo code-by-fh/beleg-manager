@@ -54,7 +54,7 @@ export function createGeminiClient(apiKey: string, healthRepo?: HealthRepo): Gem
         itemsFailed: 1,
         lastError: String((err as Error).message ?? err).slice(0, 500),
       });
-      return emptyExtraction();
+      throw err;
     }
   }
 

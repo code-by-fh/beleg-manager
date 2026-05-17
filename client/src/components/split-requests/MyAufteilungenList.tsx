@@ -105,68 +105,95 @@ export function MyAufteilungenList() {
                   const linkedTx = r.linkedBankTxId ? txMap.get(r.linkedBankTxId) : undefined;
                   const personName = r.toUser?.name ?? r.freeName ?? "—";
                   return (
-                    <div key={r.id} className="px-4 py-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm">{personName}</span>
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
-                            {label}
-                          </span>
+                    <div 
+                      key={r.id} 
+                      className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-muted/5 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <div className="flex items-center justify-between sm:justify-start gap-2">
+                          <span className="font-semibold text-sm text-foreground">{personName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
+                              {label}
+                            </span>
+                            <span className="font-bold text-sm sm:hidden text-foreground">
+                              {formatCurrency(r.betrag, meta.waehrung)}
+                            </span>
+                          </div>
                         </div>
                         {linkedTx && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            <ArrowLeftRight className="h-3 w-3 inline mr-1" />
-                            {linkedTx.haendler} · {formatDateIso(linkedTx.buchungsdatum)} · {formatCurrency(linkedTx.betrag)}
+                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 min-w-0">
+                            <ArrowLeftRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/75" />
+                            <span className="truncate">
+                              {linkedTx.haendler} · {formatDateIso(linkedTx.buchungsdatum)} · {formatCurrency(linkedTx.betrag)}
+                            </span>
                           </p>
                         )}
                       </div>
-                      <span className="font-bold text-sm flex-shrink-0">{formatCurrency(r.betrag, meta.waehrung)}</span>
-                      {/* Status control */}
-                      {!r.linkedBankTxId && r.freeName && (
-                        <Select
-                          value={r.status}
-                          onValueChange={(v) => handleStatusChange(r.id, v as SplitRequestStatus)}
-                          disabled={updateStatus.isPending}
-                        >
-                          <SelectTrigger className="h-7 w-36 text-xs px-2 py-0 flex-shrink-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Ausstehend</SelectItem>
-                            <SelectItem value="accepted">Ausgeglichen</SelectItem>
-                            <SelectItem value="cancelled">Storniert</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {!r.linkedBankTxId && r.toUser && r.status === "pending" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs flex-shrink-0"
-                          onClick={() => handleStatusChange(r.id, "cancelled")}
-                          disabled={updateStatus.isPending}
-                        >
-                          Zurückziehen
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={`h-7 w-7 flex-shrink-0 ${r.linkedBankTxId ? "text-green-600 hover:text-green-700" : "text-muted-foreground"}`}
-                        title={r.linkedBankTxId ? "Kontobewegung ändern" : "Kontobewegung zuordnen"}
-                        onClick={() => setLinkSplit(r)}
-                      >
-                        <Link2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 flex-shrink-0"
-                        onClick={() => handleDelete(r.id)}
-                        disabled={deleteRequest.isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                      </Button>
+
+                      <span className="hidden sm:inline font-bold text-sm flex-shrink-0 text-foreground">
+                        {formatCurrency(r.betrag, meta.waehrung)}
+                      </span>
+
+                      {/* Controls Row */}
+                      <div className="flex items-center justify-between sm:justify-end gap-2 border-t border-border/40 pt-2.5 sm:pt-0 sm:border-0 flex-wrap">
+                        {/* Status Select / Cancel Button */}
+                        <div className="flex-1 sm:flex-none">
+                          {!r.linkedBankTxId && r.freeName && (
+                            <Select
+                              value={r.status}
+                              onValueChange={(v) => handleStatusChange(r.id, v as SplitRequestStatus)}
+                              disabled={updateStatus.isPending}
+                            >
+                              <SelectTrigger className="h-8 w-full sm:w-36 text-xs px-2.5 py-1 shadow-none bg-background hover:bg-muted/50 transition-colors">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Ausstehend</SelectItem>
+                                <SelectItem value="accepted">Ausgeglichen</SelectItem>
+                                <SelectItem value="cancelled">Storniert</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {!r.linkedBankTxId && r.toUser && r.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-full sm:w-auto text-xs px-3 hover:bg-red-500/5 hover:text-red-500 hover:border-red-500/30"
+                              onClick={() => handleStatusChange(r.id, "cancelled")}
+                              disabled={updateStatus.isPending}
+                            >
+                              Zurückziehen
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Link / Trash Action Buttons */}
+                        <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 rounded-lg transition-colors ${
+                              r.linkedBankTxId 
+                                ? "bg-green-500/10 text-green-600 hover:bg-green-500/20 hover:text-green-700" 
+                                : "text-muted-foreground hover:bg-muted"
+                            }`}
+                            title={r.linkedBankTxId ? "Kontobewegung ändern" : "Kontobewegung zuordnen"}
+                            onClick={() => setLinkSplit(r)}
+                          >
+                            <Link2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-destructive transition-colors"
+                            onClick={() => handleDelete(r.id)}
+                            disabled={deleteRequest.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}

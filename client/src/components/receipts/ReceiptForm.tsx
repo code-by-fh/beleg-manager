@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,15 @@ export function ReceiptForm({
   onSubmit,
   busy,
   submitLabel = "Speichern und archivieren",
+  onValuesChange,
+  submitDisabled = false,
 }: {
   initial: Partial<ReceiptFormValues>;
   onSubmit: (values: ReceiptFormValues) => Promise<void>;
   busy: boolean;
   submitLabel?: string;
+  onValuesChange?: (values: { haendler: string; betrag: number; datum: string }) => void;
+  submitDisabled?: boolean;
 }) {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ReceiptFormValues>({
     resolver: zodResolver(ReceiptFormZ),
@@ -35,6 +40,19 @@ export function ReceiptForm({
       rechnungsnummer: initial.rechnungsnummer ?? "",
     },
   });
+
+  const watchedValues = watch(["haendler", "betrag", "datum"]);
+
+  useEffect(() => {
+    const [haendler, betrag, datum] = watchedValues;
+    if (onValuesChange) {
+      onValuesChange({
+        haendler: haendler ?? "",
+        betrag: Number(betrag ?? 0),
+        datum: datum ?? "",
+      });
+    }
+  }, [watchedValues, onValuesChange]);
 
   return (
     <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)}>
@@ -75,8 +93,8 @@ export function ReceiptForm({
         <Input {...register("rechnungsnummer")} />
       </Field>
       <div className="md:col-span-2">
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Speichere..." : submitLabel}
+        <Button type="submit" disabled={busy || submitDisabled} className="w-full">
+          {busy ? "Speichere..." : submitDisabled ? "Duplikat blockiert" : submitLabel}
         </Button>
       </div>
     </form>

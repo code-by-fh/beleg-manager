@@ -56,19 +56,49 @@ export function buildSplitRequestsRouter(
     try {
       const userId = req.session.userId!;
       const requests = splitRequestRepo.listOutgoing(userId);
+
+      // 1. Manual links (via SplitBankTxDialog)
       const bankLinks = db
         .prepare("SELECT split_id, bank_tx_id FROM split_bank_links WHERE user_id = ?")
         .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
-      const linkMap = new Map(bankLinks.map((l) => [l.split_id, l.bank_tx_id]));
-      const enriched = requests.map((r) => ({
-        ...r,
-        toUser: r.toUserId ? (() => {
-          const u = userRepo.getById(r.toUserId!);
-          return u ? { id: u.id, name: u.name, email: u.email } : null;
-        })() : null,
-        linkedBankTxId: linkMap.get(r.id) ?? null,
-        linkedBankTxSource: linkMap.has(r.id) ? ("manual" as const) : null,
-      }));
+      const manualLinkMap = new Map(bankLinks.map((l) => [l.split_id, l.bank_tx_id]));
+
+      // 2. Implicit links: receipt matched in Kontoabgleich → split of that receipt is settled
+      const receiptIds = requests
+        .map((r) => r.receiptSqliteId)
+        .filter((id): id is string => id !== null);
+      const receiptTxMap = new Map<string, string>(); // receiptSqliteId → bankTxId
+      if (receiptIds.length > 0) {
+        const placeholders = receiptIds.map(() => "?").join(",");
+        (db
+          .prepare(
+            `SELECT matched_receipt_id, id FROM bank_transactions
+             WHERE user_id = ? AND match_status = 'matched'
+               AND matched_receipt_id IN (${placeholders})`
+          )
+          .all(userId, ...receiptIds) as Array<{ matched_receipt_id: string; id: string }>)
+          .forEach((row) => receiptTxMap.set(row.matched_receipt_id, row.id));
+      }
+
+      const enriched = requests.map((r) => {
+        const manualTxId = manualLinkMap.get(r.id) ?? null;
+        const receiptTxId = r.receiptSqliteId ? (receiptTxMap.get(r.receiptSqliteId) ?? null) : null;
+        const linkedBankTxId = manualTxId ?? receiptTxId;
+        const linkedBankTxSource = manualTxId
+          ? ("manual" as const)
+          : receiptTxId
+            ? ("receipt" as const)
+            : null;
+        return {
+          ...r,
+          toUser: r.toUserId ? (() => {
+            const u = userRepo.getById(r.toUserId!);
+            return u ? { id: u.id, name: u.name, email: u.email } : null;
+          })() : null,
+          linkedBankTxId,
+          linkedBankTxSource,
+        };
+      });
       res.json({ requests: enriched });
     } catch (err) { next(err); }
   });

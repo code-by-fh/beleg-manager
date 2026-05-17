@@ -32,7 +32,7 @@ export function DriveInbox() {
     setBusyId(id);
     try {
       const res = await driveApi.importFile(id);
-      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName } });
+      navigate(`/review/${res.pendingId}`, { state: { extraction: res.extraction, fileName: res.fileName, mimeType: res.mimeType } });
     } catch (e) {
       toast({ title: "Import fehlgeschlagen", description: String((e as Error).message) });
     } finally {

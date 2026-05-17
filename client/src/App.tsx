@@ -28,6 +28,7 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
               <Route path="/" element={<RootRedirect />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/receipts" element={<ReceiptsPage />} />
               <Route path="/splits" element={<Navigate to="/requests" replace />} />

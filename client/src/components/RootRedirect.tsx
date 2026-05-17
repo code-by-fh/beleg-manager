@@ -1,6 +1,5 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { DashboardPage } from "@/pages/Dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function RootRedirect() {
@@ -10,11 +9,8 @@ export function RootRedirect() {
     return <div className="container py-8"><Skeleton className="h-32 w-full" /></div>;
   }
 
-  const startPage = user?.startPage || "/";
+  const startPage = user?.startPage || "/dashboard";
+  const targetPath = (startPage === "/" || startPage === "/dashboard") ? "/dashboard" : startPage;
 
-  if (startPage !== "/") {
-    return <Navigate to={startPage} replace />;
-  }
-
-  return <DashboardPage />;
+  return <Navigate to={targetPath} replace />;
 }
