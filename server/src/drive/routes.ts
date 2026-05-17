@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { z } from "zod";
+import { v4 as uuidv4 } from "uuid";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
@@ -7,6 +9,9 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
+import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
+import { archiveExistingFile } from "../receipts/archive.js";
+import { SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 
 export type DriveRoutesDeps = {
   config: Config;
@@ -95,6 +100,66 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         bm_extracted_json: JSON.stringify(extraction),
       }).catch(() => undefined);
       res.json({ pendingId, extraction, fileName: file.name });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  const ManualConfirmBody = z.object({
+    datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    haendler: z.string().min(1),
+    betrag: z.number().nonnegative(),
+    mwst: z.number().nonnegative(),
+    trinkgeld: z.number().nonnegative().default(0),
+    waehrung: z.string().min(1),
+    kategorie: z.string().min(1),
+    zahlungsmethode: z.string().min(1),
+    rechnungsnummer: z.string().default(""),
+  });
+
+  router.post("/inbox/:fileId/confirm-manual", async (req, res, next) => {
+    try {
+      const parsed = ManualConfirmBody.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
+
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token" });
+      if (!user.driveArchiveFolderId || !user.sheetId) {
+        return res.status(409).json({ error: "Drive nicht eingerichtet" });
+      }
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+
+      const { driveLink } = await archiveExistingFile(
+        drive,
+        req.params.fileId,
+        user.driveArchiveFolderId,
+        parsed.data.datum,
+      );
+
+      const sheets = sheetsFor(auth);
+      const row: ReceiptRow = {
+        id: uuidv4(),
+        datum: parsed.data.datum,
+        haendler: parsed.data.haendler,
+        betrag: parsed.data.betrag,
+        mwst: parsed.data.mwst,
+        trinkgeld: parsed.data.trinkgeld,
+        waehrung: parsed.data.waehrung,
+        kategorie: parsed.data.kategorie,
+        zahlungsmethode: parsed.data.zahlungsmethode,
+        rechnungsnummer: parsed.data.rechnungsnummer,
+        driveLink,
+        eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["drive"],
+        erstelltAm: new Date().toISOString(),
+      };
+      await appendRow(sheets, user.sheetId, row);
+
+      await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
+
+      res.json({ ok: true, row });
     } catch (err) {
       next(err);
     }
