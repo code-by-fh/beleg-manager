@@ -97,7 +97,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api/settings", buildSettingsRouter(userRepo, deps.config));
   app.use("/api/splits", buildSplitsRouter(deps.config, userRepo, deps.db));
   app.use("/api/bank", buildBankRouter({ config: deps.config, userRepo, db: deps.db }));
-  app.use("/api/split-requests", buildSplitRequestsRouter(deps.config, userRepo, splitRequestRepo));
+  app.use("/api/split-requests", buildSplitRequestsRouter(deps.config, userRepo, splitRequestRepo, deps.db));
   app.use("/api/users", buildUsersRouter(deps.db));
   app.use("/api/telegram", buildTelegramRouter({
     config: deps.config,
