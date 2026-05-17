@@ -2,19 +2,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import multer from "multer";
-import type { Config } from "../config.js";
-import type { UserRepo } from "../auth/userRepo.js";
 import type { Db } from "../db/index.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { buildOAuth2ClientFromSession } from "../google/client.js";
-import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { parseIngCsv } from "./csvParser.js";
 import { matchTransactions, type ReceiptForMatching } from "./matcher.js";
 import { createTransactionRepo, NotFoundError } from "./transactionRepo.js";
+import { createReceiptRepo } from "../receipts/receiptRepo.js";
 
 export type BankDeps = {
-  config: Config;
-  userRepo: UserRepo;
   db: Db;
 };
 
@@ -57,6 +52,7 @@ const RangeDeleteQuery = z.object({
 
 export function buildBankRouter(deps: BankDeps): Router {
   const txRepo = createTransactionRepo(deps.db);
+  const receiptRepo = createReceiptRepo(deps.db);
   const router = Router();
   router.use(requireAuth);
 
@@ -140,7 +136,7 @@ export function buildBankRouter(deps: BankDeps): Router {
         next();
       });
     },
-    async (req, res, next) => {
+    (req, res, next) => {
       try {
         if (!req.file) return res.status(400).json({ error: "file required" });
 
@@ -172,23 +168,12 @@ export function buildBankRouter(deps: BankDeps): Router {
         }
 
         // Auto-match only new transactions
-        const user = deps.userRepo.getById(userId);
-        let receipts: ReceiptForMatching[] = [];
-        if (user?.sheetId) {
-          try {
-            const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-            const sheets = sheetsFor(auth);
-            const rows = await readAllRows(sheets, user.sheetId);
-            receipts = rows.map((r) => ({
-              id: r.id,
-              datum: r.datum,
-              haendler: r.haendler,
-              betrag: r.betrag,
-            }));
-          } catch {
-            // Non-fatal — import continues without auto-match
-          }
-        }
+        const receipts: ReceiptForMatching[] = receiptRepo.findAll(userId).map((r) => ({
+          id: r.id,
+          datum: r.datum,
+          haendler: r.haendler,
+          betrag: r.betrag,
+        }));
 
         const matchResults = matchTransactions(newTransactions, receipts);
 
@@ -230,7 +215,7 @@ export function buildBankRouter(deps: BankDeps): Router {
   );
 
   // POST /api/bank/match
-  router.post("/match", async (req, res, next) => {
+  router.post("/match", (req, res, next) => {
     try {
       const parsed = MatchBody.safeParse(req.body);
       if (!parsed.success)
@@ -240,14 +225,7 @@ export function buildBankRouter(deps: BankDeps): Router {
       const { transactionId, receiptId } = parsed.data;
 
       if (receiptId !== null) {
-        const user = deps.userRepo.getById(userId);
-        if (!user?.sheetId) {
-          return res.status(400).json({ error: "No Google Sheet configured for this user" });
-        }
-        const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-        const sheets = sheetsFor(auth);
-        const allRows = await readAllRows(sheets, user.sheetId);
-        const exists = allRows.some((r) => r.id === receiptId);
+        const exists = receiptRepo.findById(userId, receiptId);
         if (!exists) {
           return res.status(404).json({ error: `Receipt ${receiptId} not found` });
         }
@@ -287,15 +265,9 @@ export function buildBankRouter(deps: BankDeps): Router {
   });
 
   // POST /api/bank/auto-match
-  router.post("/auto-match", async (req, res, next) => {
+  router.post("/auto-match", (req, res, next) => {
     try {
       const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.json({ matched: 0 });
-
-      const auth = buildOAuth2ClientFromSession(deps.config.google, req.session);
-      const sheets = sheetsFor(auth);
-      const allRows = await readAllRows(sheets, user.sheetId);
 
       const alreadyMatchedReceiptIds = new Set(
         txRepo
@@ -304,7 +276,8 @@ export function buildBankRouter(deps: BankDeps): Router {
           .map((tx) => tx.matchedReceiptId!)
       );
 
-      const receipts: ReceiptForMatching[] = allRows
+      const receipts: ReceiptForMatching[] = receiptRepo
+        .findAll(userId)
         .filter((r) => !alreadyMatchedReceiptIds.has(r.id))
         .map((r) => ({ id: r.id, datum: r.datum, haendler: r.haendler, betrag: r.betrag }));
 
