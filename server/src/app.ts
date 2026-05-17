@@ -17,6 +17,7 @@ import type { GeminiClient } from "./gemini/extract.js";
 import type { PendingStore } from "./receipts/pendingStore.js";
 import { buildReceiptsRouter } from "./receipts/routes.js";
 import { createFailedVoiceRepo } from "./receipts/failedVoiceRepo.js";
+import { createReceiptRepo } from "./receipts/receiptRepo.js";
 import { buildStatsRouter } from "./stats/routes.js";
 import { buildDriveRouter } from "./drive/routes.js";
 import { buildAdminRouter } from "./admin/routes.js";
@@ -43,6 +44,7 @@ export function createApp(deps: AppDeps): Express {
   const userRepo = createUserRepo(deps.db);
   const splitRequestRepo = createSplitRequestRepo(deps.db);
   const failedVoiceRepo = createFailedVoiceRepo(deps.db);
+  const receiptRepo = createReceiptRepo(deps.db);
   configurePassport(deps.config, userRepo);
 
   const app = express();
@@ -85,6 +87,7 @@ export function createApp(deps: AppDeps): Express {
     gemini: deps.gemini,
     pending: deps.pending,
     failedVoice: failedVoiceRepo,
+    receiptRepo,
   }));
   app.use("/api/stats", buildStatsRouter(deps.config, userRepo));
   app.use("/api/drive", buildDriveRouter({

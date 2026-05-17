@@ -3,6 +3,14 @@ import request from "supertest";
 import { makeTestApp } from "./helpers/buildTestApp.js";
 import { emptyExtraction } from "../src/gemini/schema.js";
 
+describe("receipts routes — CSV export", () => {
+  it("GET /export/csv returns 401 without session", async () => {
+    const { app } = makeTestApp();
+    const res = await request(app).get("/api/receipts/export/csv");
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("receipts routes — guards", () => {
   it("rejects /upload without session", async () => {
     const { app } = makeTestApp();

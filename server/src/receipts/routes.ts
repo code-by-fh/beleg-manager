@@ -6,13 +6,13 @@ import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import type { PendingStore } from "./pendingStore.js";
 import type { FailedVoiceRepo } from "./failedVoiceRepo.js";
+import type { ReceiptRepo } from "./receiptRepo.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "./types.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { uploadSingleImage } from "../middleware/upload.js";
 import { uploadRateLimit } from "../middleware/rateLimit.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, uploadFile, setAppProperties } from "../google/drive.js";
-import { sheetsFor, appendRow, readAllRows, updateRow, deleteRow, SHEET_TAB_NAME, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile, archiveBuffer } from "./archive.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { logger } from "../logger.js";
@@ -46,12 +46,23 @@ const UpdateBody = z.object({
   rechnungsnummer: z.string().default(""),
 });
 
+const CSV_HEADER = "id,datum,haendler,betrag,mwst,trinkgeld,waehrung,kategorie,zahlungsmethode,rechnungsnummer,drive_link,eingabe_typ,erstellt_am";
+
+function escapeCsv(v: string | number): string {
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
 export type ReceiptsDeps = {
   config: Config;
   userRepo: UserRepo;
   gemini: GeminiClient;
   pending: PendingStore;
   failedVoice: FailedVoiceRepo;
+  receiptRepo: ReceiptRepo;
 };
 
 export function buildReceiptsRouter(deps: ReceiptsDeps) {
@@ -107,38 +118,31 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         return res.json({ ok: false, jobId });
       }
 
-      const user = deps.userRepo.getById(userId);
-      if (user?.sheetId) {
-        if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-        const sheets = sheetsFor(auth);
-        const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+      const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+      const haendler = extraction.haendler ?? "Unbekannt";
+      const betrag = extraction.betrag ?? 0;
 
-        const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
-          datum,
-          haendler: extraction.haendler ?? "Unbekannt",
-          betrag: extraction.betrag ?? 0,
-        });
-        if (isDuplicate) {
-          return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
-        }
-        const row: ReceiptRow = {
-          id: uuidv4(),
-          datum,
-          haendler: extraction.haendler ?? "Unbekannt",
-          betrag: extraction.betrag ?? 0,
-          mwst: extraction.mwst ?? 0,
-          trinkgeld: extraction.trinkgeld ?? 0,
-          waehrung: extraction.waehrung ?? "EUR",
-          kategorie: extraction.kategorie ?? "Sonstiges",
-          zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
-          rechnungsnummer: extraction.rechnungsnummer ?? "",
-          driveLink: "",
-          eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
-          erstelltAm: new Date().toISOString(),
-        };
-        await appendRow(sheets, user.sheetId, row);
+      const isDuplicate = deps.receiptRepo.checkDuplicate(userId, datum, haendler, betrag);
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
       }
+
+      const row = {
+        id: uuidv4(),
+        datum,
+        haendler,
+        betrag,
+        mwst: extraction.mwst ?? 0,
+        trinkgeld: extraction.trinkgeld ?? 0,
+        waehrung: extraction.waehrung ?? "EUR",
+        kategorie: extraction.kategorie ?? "Sonstiges",
+        zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+        rechnungsnummer: extraction.rechnungsnummer ?? "",
+        driveLink: "",
+        eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
+        erstelltAm: new Date().toISOString(),
+      };
+      deps.receiptRepo.insert(userId, row);
 
       res.json({ ok: true });
     } catch (err) {
@@ -155,26 +159,20 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       if (!pending) return res.status(404).json({ error: "pending receipt not found or expired" });
 
       const user = deps.userRepo.getById(userId);
-      if (!user?.driveArchiveFolderId || !user.sheetId) {
+      if (!user?.driveArchiveFolderId) {
         return res.status(409).json({ error: "user drive not bootstrapped" });
       }
       if (!user.refreshToken) {
         return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
       }
 
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const drive = driveFor(auth);
-      const sheets = sheetsFor(auth);
-
-      // Block duplicate imports
-      const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
-        datum: parsed.data.datum,
-        haendler: parsed.data.haendler,
-        betrag: parsed.data.betrag,
-      });
+      const isDuplicate = deps.receiptRepo.checkDuplicate(userId, parsed.data.datum, parsed.data.haendler, parsed.data.betrag);
       if (isDuplicate) {
         return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
       }
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
 
       let driveLink = "";
       const baseName = `${parsed.data.datum}_${parsed.data.haendler}`.replace(/[^\w.-]/g, "_");
@@ -194,7 +192,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         await setAppProperties(drive, pending.source.fileId, { bm_status: "confirmed" }).catch(() => undefined);
       }
 
-      const row: ReceiptRow = {
+      const row = {
         id: uuidv4(),
         datum: parsed.data.datum,
         haendler: parsed.data.haendler,
@@ -209,7 +207,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP[pending.source.kind],
         erstelltAm: new Date().toISOString(),
       };
-      await appendRow(sheets, user.sheetId, row);
+      deps.receiptRepo.insert(userId, row);
       res.json({ ok: true, row });
     } catch (err) {
       next(err);
@@ -313,38 +311,31 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         return res.status(502).json({ error: String((geminiErr as Error).message ?? geminiErr) });
       }
 
-      const user = deps.userRepo.getById(userId);
-      if (user?.sheetId) {
-        if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-        const sheets = sheetsFor(auth);
-        const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+      const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+      const haendler = extraction.haendler ?? "Unbekannt";
+      const betrag = extraction.betrag ?? 0;
 
-        const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
-          datum,
-          haendler: extraction.haendler ?? "Unbekannt",
-          betrag: extraction.betrag ?? 0,
-        });
-        if (isDuplicate) {
-          return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
-        }
-        const row: ReceiptRow = {
-          id: uuidv4(),
-          datum,
-          haendler: extraction.haendler ?? "Unbekannt",
-          betrag: extraction.betrag ?? 0,
-          mwst: extraction.mwst ?? 0,
-          trinkgeld: extraction.trinkgeld ?? 0,
-          waehrung: extraction.waehrung ?? "EUR",
-          kategorie: extraction.kategorie ?? "Sonstiges",
-          zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
-          rechnungsnummer: extraction.rechnungsnummer ?? "",
-          driveLink: "",
-          eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
-          erstelltAm: new Date().toISOString(),
-        };
-        await appendRow(sheets, user.sheetId, row);
+      const isDuplicate = deps.receiptRepo.checkDuplicate(userId, datum, haendler, betrag);
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
       }
+
+      const row = {
+        id: uuidv4(),
+        datum,
+        haendler,
+        betrag,
+        mwst: extraction.mwst ?? 0,
+        trinkgeld: extraction.trinkgeld ?? 0,
+        waehrung: extraction.waehrung ?? "EUR",
+        kategorie: extraction.kategorie ?? "Sonstiges",
+        zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+        rechnungsnummer: extraction.rechnungsnummer ?? "",
+        driveLink: "",
+        eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["voice"],
+        erstelltAm: new Date().toISOString(),
+      };
+      deps.receiptRepo.insert(userId, row);
 
       deps.failedVoice.delete(userId, job.id);
       res.json({ ok: true });
@@ -353,126 +344,71 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     }
   });
 
-  router.get("/duplicate-check", async (req, res, next) => {
-    try {
-      const { haendler, betrag, datum } = req.query;
-      if (typeof haendler !== "string" || typeof betrag !== "string" || typeof datum !== "string") {
-        return res.status(400).json({ error: "haendler, betrag, datum required" });
-      }
-      const parsedBetrag = parseFloat(betrag);
-      if (isNaN(parsedBetrag)) return res.status(400).json({ error: "betrag must be a number" });
-
-      const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.json({ duplicate: null });
-      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const sheets = sheetsFor(auth);
-
-      const scanRes = await sheets.spreadsheets.values.get({
-        spreadsheetId: user.sheetId,
-        range: `${SHEET_TAB_NAME}!A2:D`,
-      });
-      const rawRows = (scanRes.data.values ?? []) as string[][];
-
-      const targetMs = new Date(datum).getTime();
-      const oneDayMs = 86_400_000;
-      const haendlerLc = haendler.trim().toLowerCase();
-
-      const matchedRaw = rawRows.find((r) => {
-        const rowMs = new Date(r[1] ?? "").getTime();
-        const rowBetrag = parseFloat(String(r[3] ?? "").replace(",", "."));
-        return (
-          (r[2] ?? "").trim().toLowerCase() === haendlerLc &&
-          rowBetrag === parsedBetrag &&
-          !isNaN(rowMs) &&
-          Math.abs(rowMs - targetMs) <= oneDayMs
-        );
-      });
-
-      if (!matchedRaw) return res.json({ duplicate: null });
-
-      const allRows = await readAllRows(sheets, user.sheetId);
-      const duplicate = allRows.find((r) => r.id === matchedRaw[0]) ?? null;
-
-      res.json({ duplicate: duplicate ?? null });
-    } catch (err) {
-      next(err);
+  router.get("/duplicate-check", (req, res) => {
+    const { haendler, betrag, datum } = req.query;
+    if (typeof haendler !== "string" || typeof betrag !== "string" || typeof datum !== "string") {
+      return res.status(400).json({ error: "haendler, betrag, datum required" });
     }
+    const parsedBetrag = parseFloat(betrag);
+    if (isNaN(parsedBetrag)) return res.status(400).json({ error: "betrag must be a number" });
+
+    const userId = req.session.userId!;
+    const isDuplicate = deps.receiptRepo.checkDuplicate(userId, datum, haendler, parsedBetrag);
+    res.json({ duplicate: isDuplicate ? { datum, haendler, betrag: parsedBetrag } : null });
   });
 
-  router.get("/", async (req, res, next) => {
-    try {
-      const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.json({ rows: [] });
-      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const sheets = sheetsFor(auth);
-      const rows = await readAllRows(sheets, user.sheetId);
-      res.json({ rows });
-    } catch (err) {
-      next(err);
-    }
+  router.get("/export/csv", (req, res) => {
+    const userId = req.session.userId!;
+    const rows = deps.receiptRepo.findAll(userId);
+    const lines = rows.map((r) =>
+      [r.id, r.datum, r.haendler, r.betrag, r.mwst, r.trinkgeld, r.waehrung,
+       r.kategorie, r.zahlungsmethode, r.rechnungsnummer, r.driveLink, r.eingabeTyp, r.erstelltAm]
+        .map(escapeCsv)
+        .join(",")
+    );
+    const csv = [CSV_HEADER, ...lines].join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="belege.csv"');
+    res.send(csv);
   });
 
-  router.put("/:id", async (req, res, next) => {
-    try {
-      const parsed = UpdateBody.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
-
-      const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
-      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const sheets = sheetsFor(auth);
-
-      const allRows = await readAllRows(sheets, user.sheetId);
-      const existing = allRows.find((r) => r.id === req.params.id);
-      if (!existing) return res.status(404).json({ error: "receipt not found" });
-
-      const updated: ReceiptRow = {
-        ...existing,
-        datum: parsed.data.datum,
-        haendler: parsed.data.haendler,
-        betrag: parsed.data.betrag,
-        mwst: parsed.data.mwst,
-        trinkgeld: parsed.data.trinkgeld,
-        waehrung: parsed.data.waehrung,
-        kategorie: parsed.data.kategorie,
-        zahlungsmethode: parsed.data.zahlungsmethode,
-        rechnungsnummer: parsed.data.rechnungsnummer,
-      };
-
-      const ok = await updateRow(sheets, user.sheetId, updated);
-      if (!ok) return res.status(404).json({ error: "receipt not found in sheet" });
-
-      res.json({ ok: true, row: updated });
-    } catch (err) {
-      next(err);
-    }
+  router.get("/", (req, res) => {
+    const userId = req.session.userId!;
+    const rows = deps.receiptRepo.findAll(userId);
+    res.json({ rows });
   });
 
-  router.delete("/:id", async (req, res, next) => {
-    try {
-      const userId = req.session.userId!;
-      const user = deps.userRepo.getById(userId);
-      if (!user?.sheetId) return res.status(409).json({ error: "user drive not bootstrapped" });
-      if (!user.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+  router.put("/:id", (req, res) => {
+    const parsed = UpdateBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
 
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const sheets = sheetsFor(auth);
+    const userId = req.session.userId!;
+    const existing = deps.receiptRepo.findById(userId, req.params.id);
+    if (!existing) return res.status(404).json({ error: "receipt not found" });
 
-      const ok = await deleteRow(sheets, user.sheetId, req.params.id);
-      if (!ok) return res.status(404).json({ error: "receipt not found" });
+    const updated = {
+      ...existing,
+      datum: parsed.data.datum,
+      haendler: parsed.data.haendler,
+      betrag: parsed.data.betrag,
+      mwst: parsed.data.mwst,
+      trinkgeld: parsed.data.trinkgeld,
+      waehrung: parsed.data.waehrung,
+      kategorie: parsed.data.kategorie,
+      zahlungsmethode: parsed.data.zahlungsmethode,
+      rechnungsnummer: parsed.data.rechnungsnummer,
+    };
 
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
+    const ok = deps.receiptRepo.update(userId, updated);
+    if (!ok) return res.status(404).json({ error: "receipt not found" });
+    res.json({ ok: true, row: updated });
+  });
+
+  router.delete("/:id", (req, res) => {
+    const userId = req.session.userId!;
+    const ok = deps.receiptRepo.delete(userId, req.params.id);
+    if (!ok) return res.status(404).json({ error: "receipt not found" });
+    res.json({ ok: true });
   });
 
   return router;
