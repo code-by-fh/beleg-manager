@@ -14,14 +14,18 @@ export type UserInfo = { id: string; name: string; email: string };
 export type SplitRequest = {
   id: string;
   fromUserId: string;
-  toUserId: string;
-  receiptId: string;
+  toUserId: string | null;
+  freeName: string | null;
+  receiptId: string | null;
+  receiptSqliteId: string | null;
   receiptMeta: ReceiptMeta;
   betrag: number;
   nachricht: string;
   status: SplitRequestStatus;
   createdAt: number;
   updatedAt: number;
+  linkedBankTxId: string | null;
+  linkedBankTxSource: "manual" | "receipt" | null;
 };
 
 export type IncomingRequest = SplitRequest & { fromUser: UserInfo | null };
@@ -34,16 +38,23 @@ export const splitRequestsApi = {
 
   pendingCount: () => api.get<{ count: number }>("/api/split-requests/pending-count"),
 
+  knownPersons: () => api.get<{ persons: string[] }>("/api/split-requests/known-persons"),
+
   create: (payload: {
-    toUserId: string;
-    receiptId: string;
+    toUserId?: string;
+    freeName?: string;
+    receiptId?: string;
+    receiptSqliteId?: string;
     receiptMeta: ReceiptMeta;
     betrag: number;
     nachricht: string;
   }) => api.post<{ request: SplitRequest }>("/api/split-requests", payload),
 
-  updateStatus: (id: string, status: "accepted" | "rejected" | "cancelled") =>
+  updateStatus: (id: string, status: "pending" | "accepted" | "rejected" | "cancelled") =>
     api.patch<{ ok: true }>(`/api/split-requests/${id}/status`, { status }),
+
+  linkBankTx: (id: string, bankTxId: string | null) =>
+    api.patch<{ ok: true }>(`/api/split-requests/${id}/bank-tx`, { bankTxId }),
 
   delete: (id: string) => api.delete<{ ok: true }>(`/api/split-requests/${id}`),
 

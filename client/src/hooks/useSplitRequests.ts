@@ -56,3 +56,11 @@ export function useCreateRequest() {
     },
   });
 }
+
+export function useKnownPersons() {
+  return useQuery({
+    queryKey: ["split-requests", "known-persons"],
+    queryFn: () => splitRequestsApi.knownPersons(),
+    select: (data) => data.persons,
+  });
+}
