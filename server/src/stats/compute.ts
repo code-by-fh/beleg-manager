@@ -1,4 +1,4 @@
-import type { ReceiptRow } from "../google/sheets.js";
+import type { ReceiptRow } from "../receipts/receiptRepo.js";
 
 export type Summary = {
   monthTotal: number;
