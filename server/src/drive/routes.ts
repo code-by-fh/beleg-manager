@@ -5,11 +5,11 @@ import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import type { PendingStore } from "../receipts/pendingStore.js";
+import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-import { sheetsFor, appendRow, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile } from "../receipts/archive.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
@@ -19,6 +19,7 @@ export type DriveRoutesDeps = {
   userRepo: UserRepo;
   gemini: GeminiClient;
   pending: PendingStore;
+  receiptRepo: ReceiptRepo;
 };
 
 const SUPPORTED = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -161,22 +162,17 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       const userId = req.session.userId!;
       const user = deps.userRepo.getById(userId);
       if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token" });
-      if (!user.driveArchiveFolderId || !user.sheetId) {
+      if (!user.driveArchiveFolderId) {
         return res.status(409).json({ error: "Drive nicht eingerichtet" });
+      }
+
+      const isDuplicate = deps.receiptRepo.checkDuplicate(userId, parsed.data.datum, parsed.data.haendler, parsed.data.betrag);
+      if (isDuplicate) {
+        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
       }
 
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
-      const sheets = sheetsFor(auth);
-
-      const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
-        datum: parsed.data.datum,
-        haendler: parsed.data.haendler,
-        betrag: parsed.data.betrag,
-      });
-      if (isDuplicate) {
-        return res.status(409).json({ error: "Duplikat erkannt: Dieser Beleg wurde bereits importiert." });
-      }
 
       const { driveLink } = await archiveExistingFile(
         drive,
@@ -185,7 +181,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         parsed.data.datum,
       );
 
-      const row: ReceiptRow = {
+      const row = {
         id: uuidv4(),
         datum: parsed.data.datum,
         haendler: parsed.data.haendler,
@@ -200,7 +196,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["drive"],
         erstelltAm: new Date().toISOString(),
       };
-      await appendRow(sheets, user.sheetId, row);
+      deps.receiptRepo.insert(userId, row);
 
       await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
 
