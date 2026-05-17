@@ -255,6 +255,13 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
             <span />
           )}
           <div className="flex items-center gap-2">
+            <a
+              href="/api/receipts/export/csv"
+              download="belege.csv"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              CSV exportieren
+            </a>
             <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border/40">
               <Button
                 variant={viewMode === "table" ? "secondary" : "ghost"}
