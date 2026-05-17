@@ -5,9 +5,9 @@ import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import type { GeminiClient } from "../gemini/extract.js";
 import type { HealthRepo } from "../monitoring/repo.js";
+import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-import { sheetsFor, appendRow, checkDuplicateRow, type ReceiptRow } from "../google/sheets.js";
 import { archiveExistingFile } from "../receipts/archive.js";
 import { SUPPORTED_MIME_TYPES, SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
@@ -17,6 +17,7 @@ export type PollerDeps = {
   userRepo: UserRepo;
   gemini: GeminiClient;
   healthRepo?: HealthRepo;
+  receiptRepo: ReceiptRepo;
 };
 
 const log = logger.child({ module: "inbox-poller" });
@@ -64,7 +65,6 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
     try {
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
-      const sheets = sheetsFor(auth);
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
       for (const file of files) {
         if (file.appProperties?.bm_status) continue;
@@ -74,16 +74,12 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
           const extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });
 
           const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
+          const haendler = extraction.haendler ?? "Unbekannt";
+          const betrag = extraction.betrag ?? 0;
 
-          if (user.sheetId) {
-            const isDuplicate = await checkDuplicateRow(sheets, user.sheetId, {
-              datum,
-              haendler: extraction.haendler ?? "Unbekannt",
-              betrag: extraction.betrag ?? 0,
-            });
-            if (isDuplicate) {
-              throw new Error("Duplikat erkannt: Beleg existiert bereits im Sheet");
-            }
+          const isDuplicate = deps.receiptRepo.checkDuplicate(user.id, datum, haendler, betrag);
+          if (isDuplicate) {
+            throw new Error("Duplikat erkannt: Beleg existiert bereits");
           }
 
           let driveLink = "";
@@ -96,24 +92,21 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
             }
           }
 
-          if (user.sheetId) {
-            const row: ReceiptRow = {
-              id: randomUUID(),
-              datum,
-              haendler: extraction.haendler ?? "Unbekannt",
-              betrag: extraction.betrag ?? 0,
-              mwst: extraction.mwst ?? 0,
-              trinkgeld: extraction.trinkgeld ?? 0,
-              waehrung: extraction.waehrung ?? "EUR",
-              kategorie: extraction.kategorie ?? "Sonstiges",
-              zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
-              rechnungsnummer: extraction.rechnungsnummer ?? "",
-              driveLink,
-              eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["drive"],
-              erstelltAm: new Date().toISOString(),
-            };
-            await appendRow(sheets, user.sheetId, row);
-          }
+          deps.receiptRepo.insert(user.id, {
+            id: randomUUID(),
+            datum,
+            haendler,
+            betrag,
+            mwst: extraction.mwst ?? 0,
+            trinkgeld: extraction.trinkgeld ?? 0,
+            waehrung: extraction.waehrung ?? "EUR",
+            kategorie: extraction.kategorie ?? "Sonstiges",
+            zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+            rechnungsnummer: extraction.rechnungsnummer ?? "",
+            driveLink,
+            eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["drive"],
+            erstelltAm: new Date().toISOString(),
+          });
 
           await setAppProperties(drive, file.id, { bm_status: "confirmed" }).catch(() => undefined);
           log.debug({ fileId: file.id, userId: user.id }, "file processed");

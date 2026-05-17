@@ -11,6 +11,7 @@ import { createUserRepo } from "./auth/userRepo.js";
 import { buildOAuth2ClientForRefreshToken } from "./google/client.js";
 import { bootstrapUserDrive } from "./google/bootstrap.js";
 import { createGeminiClient } from "./gemini/extract.js";
+import { createReceiptRepo } from "./receipts/receiptRepo.js";
 import { createPendingStore } from "./receipts/pendingStore.js";
 import { startInboxPoller } from "./inbox/poller.js";
 import { startGmailPoller } from "./gmail/poller.js";
@@ -20,6 +21,7 @@ const config = loadConfig(process.env);
 const db = openDatabase("data/app.db");
 runMigrations(db);
 const userRepo = createUserRepo(db);
+const receiptRepo = createReceiptRepo(db);
 const healthRepo = createHealthRepo(db);
 const gemini = createGeminiClient(config.geminiApiKey, healthRepo);
 const pending = createPendingStore({ ttlMs: 30 * 60_000 });
@@ -33,7 +35,7 @@ async function onFirstLogin(userId: string) {
 }
 
 const app = createApp({ config, db, gemini, pending, healthRepo, onFirstLogin });
-const poller = startInboxPoller({ config, userRepo, gemini, healthRepo });
+const poller = startInboxPoller({ config, userRepo, gemini, healthRepo, receiptRepo });
 const gmailPoller = startGmailPoller({ config, userRepo, db, healthRepo });
 
 const server = app.listen(config.port, () => {
