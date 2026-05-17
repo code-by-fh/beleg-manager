@@ -202,13 +202,15 @@ export function FailedReceiptsSection() {
       toast({ title: "Fehler", description: String((e as Error).message) });
     } finally {
       retryingRef.current.delete(fileId);
-      setRetryingDrive(retryingRef.current.size > 0 ? [...retryingRef.current][0] : null);
+      setRetryingDrive(retryingRef.current.size > 0 ? ([...retryingRef.current][0] ?? null) : null);
       if (retryingRef.current.size === 0 && resultsRef.current.length > 0) {
         const [first, ...rest] = resultsRef.current;
         resultsRef.current = [];
-        navigate(`/review/${first.pendingId}`, {
-          state: { extraction: first.extraction, fileName: first.fileName, mimeType: first.mimeType, queue: rest },
-        });
+        if (first) {
+          navigate(`/review/${first.pendingId}`, {
+            state: { extraction: first.extraction, fileName: first.fileName, mimeType: first.mimeType, queue: rest },
+          });
+        }
       }
     }
   }

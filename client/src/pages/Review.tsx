@@ -101,8 +101,8 @@ export function ReviewPage() {
   const queue = state?.queue ?? [];
 
   function navigateAfterAction() {
-    if (queue.length > 0) {
-      const [next, ...rest] = queue;
+    const [next, ...rest] = queue;
+    if (next) {
       navigate(`/review/${next.pendingId}`, {
         state: { extraction: next.extraction, fileName: next.fileName, mimeType: next.mimeType, queue: rest },
       });
