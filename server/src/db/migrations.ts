@@ -91,6 +91,54 @@ export function runMigrations(db: Db): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status)`);
 
+  // Extend split_requests: nullable to_user_id, free_name, receipt_sqlite_id, nullable receipt_id
+  // Guard: only run if free_name column is absent
+  const srCols = db.prepare("PRAGMA table_info(split_requests)").all() as Array<{ name: string }>;
+  if (!srCols.some((c) => c.name === "free_name")) {
+    db.exec(`
+      CREATE TABLE split_requests_new (
+        id                TEXT PRIMARY KEY,
+        from_user_id      TEXT NOT NULL,
+        to_user_id        TEXT,
+        free_name         TEXT,
+        receipt_id        TEXT,
+        receipt_sqlite_id TEXT,
+        receipt_meta      TEXT NOT NULL,
+        betrag            REAL NOT NULL,
+        nachricht         TEXT NOT NULL DEFAULT '',
+        status            TEXT NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','accepted','rejected','cancelled')),
+        created_at        INTEGER NOT NULL,
+        updated_at        INTEGER NOT NULL,
+        FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO split_requests_new
+        (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
+         receipt_meta, betrag, nachricht, status, created_at, updated_at)
+      SELECT id, from_user_id, to_user_id, NULL, receipt_id, NULL,
+             receipt_meta, betrag, nachricht, status, created_at, updated_at
+      FROM split_requests;
+      DROP TABLE split_requests;
+      ALTER TABLE split_requests_new RENAME TO split_requests;
+      CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status);
+    `);
+  }
+
+  // failed_uploads: for direct-upload receipts where Gemini failed
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS failed_uploads (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      filename    TEXT NOT NULL,
+      filepath    TEXT NOT NULL,
+      error       TEXT NOT NULL,
+      created_at  INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS service_health (
       service_name    TEXT PRIMARY KEY,
