@@ -2,15 +2,14 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Link2, ArrowLeftRight } from "lucide-react";
-import { useOutgoingRequests } from "@/hooks/useSplitRequests";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Link2, ArrowLeftRight, Trash2 } from "lucide-react";
+import { useOutgoingRequests, useUpdateRequestStatus, useDeleteRequest } from "@/hooks/useSplitRequests";
 import { useToast } from "@/components/ui/use-toast";
-import { useDeleteRequest } from "@/hooks/useSplitRequests";
 import { bankApi } from "@/api/bank";
 import { SplitBankTxDialog } from "@/components/bank/SplitBankTxDialog";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
-import { Trash2 } from "lucide-react";
-import type { OutgoingRequest } from "@/api/splitRequests";
+import type { OutgoingRequest, SplitRequestStatus } from "@/api/splitRequests";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   pending:   { label: "Ausstehend",    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -30,6 +29,7 @@ export function MyAufteilungenList() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const deleteRequest = useDeleteRequest();
+  const updateStatus = useUpdateRequestStatus();
   const [linkSplit, setLinkSplit] = useState<OutgoingRequest | null>(null);
 
   const txMap = useMemo(() => {
@@ -50,6 +50,14 @@ export function MyAufteilungenList() {
     for (const list of map.values()) list.sort((a, b) => a.createdAt - b.createdAt);
     return [...map.values()];
   }, [data]);
+
+  async function handleStatusChange(id: string, status: SplitRequestStatus) {
+    try {
+      await updateStatus.mutateAsync({ id, status });
+    } catch {
+      toast({ title: "Fehler beim Aktualisieren", variant: "destructive" });
+    }
+  }
 
   async function handleDelete(id: string) {
     try {
@@ -113,6 +121,34 @@ export function MyAufteilungenList() {
                         )}
                       </div>
                       <span className="font-bold text-sm flex-shrink-0">{formatCurrency(r.betrag, meta.waehrung)}</span>
+                      {/* Status control */}
+                      {!r.linkedBankTxId && r.freeName && (
+                        <Select
+                          value={r.status}
+                          onValueChange={(v) => handleStatusChange(r.id, v as SplitRequestStatus)}
+                          disabled={updateStatus.isPending}
+                        >
+                          <SelectTrigger className="h-7 w-36 text-xs px-2 py-0 flex-shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Ausstehend</SelectItem>
+                            <SelectItem value="accepted">Ausgeglichen</SelectItem>
+                            <SelectItem value="cancelled">Storniert</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {!r.linkedBankTxId && r.toUser && r.status === "pending" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs flex-shrink-0"
+                          onClick={() => handleStatusChange(r.id, "cancelled")}
+                          disabled={updateStatus.isPending}
+                        >
+                          Zurückziehen
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

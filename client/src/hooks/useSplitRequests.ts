@@ -29,7 +29,7 @@ export function usePendingCount() {
 export function useUpdateRequestStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "accepted" | "rejected" | "cancelled" }) =>
+    mutationFn: ({ id, status }: { id: string; status: "pending" | "accepted" | "rejected" | "cancelled" }) =>
       splitRequestsApi.updateStatus(id, status),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["split-requests"] });
