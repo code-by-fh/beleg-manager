@@ -40,7 +40,9 @@ export function KontobewegungZuordnenDialog({ receipt, onClose, onAssigned }: Pr
 
   const candidates = useMemo(() => {
     const txs = (data?.transactions ?? []).filter(
-      (tx) => tx.matchStatus === "unmatched" || tx.matchedReceiptId === receipt?.id
+      (tx) =>
+        tx.betrag < 0 &&
+        (tx.matchStatus === "unmatched" || tx.matchedReceiptId === receipt?.id)
     );
     if (!search.trim()) return txs;
     const q = search.toLowerCase();
