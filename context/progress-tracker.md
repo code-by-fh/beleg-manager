@@ -23,6 +23,11 @@ change.
 - Implemented multi-tenant cross-user split requests with receipt proxy preview and user search.
 - Implemented system health monitoring page at /monitoring with service health cards for Drive Inbox Poller, Gmail Poller, Telegram Bot, and Gemini AI Extraction.
 - Implemented persistent ING CSV import with AES-256-GCM encryption, deduplication with detail feedback, monthly/date-range filtering, individual and range deletion, and removal of the "Abgleich abschließen" button.
+- Unified Aufteilungen + Anforderungen into a single split_requests system: extended schema with nullable toUserId, freeName, receiptSqliteId; removed old Google-Sheets-based splits API; merged /splits and /requests nav items into one /requests page with two tabs (Meine Aufteilungen, Eingehend).
+- Added image preview in PhotoUpload (client-side object URL for images, FileText icon for PDFs).
+- Added manual-entry fallback for failed Drive inbox items (Manuell button → ReceiptForm → POST /api/drive/inbox/:fileId/confirm-manual).
+- SplitDialog now supports both app-user search (debounced /api/users/search) and free-name entry; known persons shown as datalist suggestions.
+- MyAufteilungenList shows outgoing split_requests grouped by receipt with bank-tx linking (SplitBankTxDialog).
 
 ## In Progress
 
@@ -41,6 +46,11 @@ change.
 - Added `receipts_view_mode` and `start_page` to the `users` table to persist UI preferences across sessions/devices.
 - Updated `/api/settings/ui` and `/api/auth/me` endpoints to include UI-specific user configurations.
 - Added `split_requests` SQLite table for cross-user Aufteilungsanforderungen. Cross-user coordination is app-level, stored in SQLite not Google Sheets.
+- `split_requests` extended: `to_user_id` nullable (supports free-name splits), `free_name TEXT`, `receipt_sqlite_id TEXT` added, `receipt_id` made nullable. Migration recreates the table in-place with a guard column check.
+- `GET /api/split-requests/known-persons` returns a deduplicated list of all free names previously used by the requesting user.
+- `POST /api/drive/inbox/:fileId/confirm-manual` archives the Drive file, appends a receipt row to Google Sheets, and marks the file confirmed.
+- `/splits` route removed; old `splitsApi` (Google Sheets) and `SplitRow` type deleted. Redirect /splits → /requests.
+- `SplitStatus` type removed from client types (replaced by `SplitRequestStatus` in splitRequests API types).
 - Receipt previews served via server-side proxy using from_user's refresh token — to_user never gets direct Drive access.
 - User search endpoint (`GET /api/users/search`) returns only `{id, name, email}` — no internal fields ever exposed.
 - Drive File ID is extracted from `ReceiptRow.driveLink` URL on the client side (`/file/d/{id}` pattern).
