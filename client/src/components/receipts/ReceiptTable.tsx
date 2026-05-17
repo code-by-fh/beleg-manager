@@ -13,10 +13,11 @@ import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
 import { ReceiptForm } from "./ReceiptForm";
-import { SplitDialog } from "./SplitDialog";
+import { SplitEditorDialog, type SplitContext } from "@/components/splits/SplitEditorDialog";
 import { receiptsApi } from "@/api/receipts";
 import { splitRequestsApi } from "@/api/splitRequests";
 import { bankApi } from "@/api/bank";
+import type { OutgoingRequest } from "@/api/splitRequests";
 import { useToast } from "@/components/ui/use-toast";
 import { KontobewegungZuordnenDialog } from "@/components/bank/KontobewegungZuordnenDialog";
 import type { ReceiptRow } from "@/types/receipt";
@@ -100,7 +101,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const qc = useQueryClient();
 
   const outgoingRequests = outgoingData?.requests ?? [];
-  const splitReceiptIds = useMemo(() => new Set(outgoingRequests.filter((r) => r.receiptSqliteId).map((r) => r.receiptSqliteId!)), [outgoingRequests]);
+
   // Map receiptId → bankTxId for matched transactions
   const matchedReceiptTxMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -109,6 +110,30 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     }
     return map;
   }, [bankData]);
+
+  // Map bankTxId → splits linked via that transaction
+  const txSplitMap = useMemo(() => {
+    const map = new Map<string, OutgoingRequest[]>();
+    for (const req of outgoingRequests) {
+      if (req.linkedBankTxId) {
+        const existing = map.get(req.linkedBankTxId) ?? [];
+        map.set(req.linkedBankTxId, [...existing, req]);
+      }
+    }
+    return map;
+  }, [outgoingRequests]);
+
+  // Returns { direct, bankTx } splits for a receipt — bankTx excludes splits already in direct
+  function getSplitsForReceipt(receiptId: string): { direct: OutgoingRequest[]; bankTx: OutgoingRequest[] } {
+    const direct = outgoingRequests.filter((r) => r.receiptSqliteId === receiptId);
+    const directIds = new Set(direct.map((r) => r.id));
+    const txId = matchedReceiptTxMap.get(receiptId);
+    const bankTx = txId
+      ? (txSplitMap.get(txId) ?? []).filter((r) => !directIds.has(r.id))
+      : [];
+    return { direct, bankTx };
+  }
+
   const { toast } = useToast();
   const [filters, setFilters] = useState<Filters>({ search: "", kategorie: "__all__", from: "", to: "" });
   const [editRow, setEditRow] = useState<ReceiptRow | null>(null);
@@ -207,6 +232,18 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     
     return limit ? rows.slice(0, limit) : rows;
   }, [data, filters, sortConfig, limit]);
+
+  const splitContext = useMemo((): SplitContext | null => {
+    if (!splitRow) return null;
+    const { direct, bankTx } = getSplitsForReceipt(splitRow.id);
+    return {
+      type: "receipt",
+      receipt: splitRow,
+      linkedBankTxId: matchedReceiptTxMap.get(splitRow.id) ?? null,
+      existingSplits: [...direct, ...bankTx],
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitRow, outgoingRequests, matchedReceiptTxMap, txSplitMap]);
 
   async function handleEdit(values: import("@/lib/validators").ReceiptFormValues) {
     if (!editRow) return;
@@ -365,16 +402,27 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                         <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setSplitRow(r)}
-                          aria-label="Aufteilen"
-                          title={splitReceiptIds.has(r.id) ? "Aufteilung bearbeiten" : "Aufteilen"}
-                          className={splitReceiptIds.has(r.id) ? "text-blue-500 hover:text-blue-600" : ""}
-                        >
-                          <SplitSquareHorizontal className="h-4 w-4" />
-                        </Button>
+                        {(() => {
+                          const { direct, bankTx } = getSplitsForReceipt(r.id);
+                          const total = direct.length + bankTx.length;
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSplitRow(r)}
+                              aria-label="Aufteilen"
+                              title={total > 0 ? "Aufteilung bearbeiten" : "Aufteilen"}
+                              className={`relative ${total > 0 ? "text-blue-500 hover:text-blue-600" : ""}`}
+                            >
+                              <SplitSquareHorizontal className="h-4 w-4" />
+                              {total > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-bold text-white">
+                                  {total}
+                                </span>
+                              )}
+                            </Button>
+                          );
+                        })()}
                         <Button variant="ghost" size="icon" onClick={() => setDeleteRow(r)} aria-label="Löschen" className="text-destructive hover:text-destructive hover:bg-destructive/10">
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -447,14 +495,25 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditRow(r)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-8 w-8 ${splitReceiptIds.has(r.id) ? "text-blue-500" : ""}`}
-                      onClick={() => setSplitRow(r)}
-                    >
-                      <SplitSquareHorizontal className="h-3.5 w-3.5" />
-                    </Button>
+                    {(() => {
+                      const { direct, bankTx } = getSplitsForReceipt(r.id);
+                      const total = direct.length + bankTx.length;
+                      return (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`relative h-8 w-8 ${total > 0 ? "text-blue-500" : ""}`}
+                          onClick={() => setSplitRow(r)}
+                        >
+                          <SplitSquareHorizontal className="h-3.5 w-3.5" />
+                          {total > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-bold text-white">
+                              {total}
+                            </span>
+                          )}
+                        </Button>
+                      );
+                    })()}
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteRow(r)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -517,7 +576,10 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SplitDialog receipt={splitRow} existingRequests={outgoingRequests} onClose={() => setSplitRow(null)} />
+      <SplitEditorDialog
+        context={splitContext}
+        onClose={() => setSplitRow(null)}
+      />
       <KontobewegungZuordnenDialog
         receipt={linkTxRow}
         onClose={() => setLinkTxRow(null)}
