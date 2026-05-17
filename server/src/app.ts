@@ -89,16 +89,17 @@ export function createApp(deps: AppDeps): Express {
     failedVoice: failedVoiceRepo,
     receiptRepo,
   }));
-  app.use("/api/stats", buildStatsRouter(deps.config, userRepo));
+  app.use("/api/stats", buildStatsRouter(userRepo, receiptRepo));
   app.use("/api/drive", buildDriveRouter({
     config: deps.config,
     userRepo,
     gemini: deps.gemini,
     pending: deps.pending,
+    receiptRepo,
   }));
   app.use("/api/admin", buildAdminRouter(deps.config, userRepo, deps.db));
   app.use("/api/settings", buildSettingsRouter(userRepo, deps.config));
-  app.use("/api/splits", buildSplitsRouter(deps.config, userRepo, deps.db));
+  app.use("/api/splits", buildSplitsRouter(deps.db));
   app.use("/api/bank", buildBankRouter({ config: deps.config, userRepo, db: deps.db }));
   app.use("/api/split-requests", buildSplitRequestsRouter(deps.config, userRepo, splitRequestRepo, deps.db));
   app.use("/api/users", buildUsersRouter(deps.db));
@@ -107,6 +108,7 @@ export function createApp(deps: AppDeps): Express {
     userRepo,
     gemini: deps.gemini,
     healthRepo: deps.healthRepo,
+    receiptRepo,
   }));
   app.use("/api/monitoring", buildMonitoringRouter(deps.healthRepo));
 
