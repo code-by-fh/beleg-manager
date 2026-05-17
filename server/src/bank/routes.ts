@@ -59,11 +59,23 @@ export function buildBankRouter(deps: BankDeps): Router {
   // Matches pending split_requests against positive bank transactions by amount + date window.
   // Returns the number of new links created.
   function autoMatchSplitsForUser(userId: string): number {
+    // Join with bank_transactions to get the betrag of each linked tx.
+    // Only treat a split as already-settled when it is linked to a POSITIVE tx
+    // (incoming reimbursement). Links to negative txs are origin links created
+    // when a split is produced from an outgoing transaction — those splits must
+    // still be candidates for settlement matching.
     const existingLinks = deps.db
-      .prepare("SELECT split_id, bank_tx_id FROM split_bank_links WHERE user_id = ?")
-      .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
-    const usedTxIds = new Set(existingLinks.map((l) => l.bank_tx_id));
-    const linkedSplitIds = new Set(existingLinks.map((l) => l.split_id));
+      .prepare(`
+        SELECT sbl.split_id, sbl.bank_tx_id, bt.betrag
+        FROM split_bank_links sbl
+        JOIN bank_transactions bt ON bt.id = sbl.bank_tx_id AND bt.user_id = sbl.user_id
+        WHERE sbl.user_id = ?
+      `)
+      .all(userId) as Array<{ split_id: string; bank_tx_id: string; betrag: number }>;
+
+    // A positive-linked tx is a settlement — mark both tx and split as used.
+    const usedTxIds = new Set(existingLinks.filter((l) => l.betrag > 0).map((l) => l.bank_tx_id));
+    const settledSplitIds = new Set(existingLinks.filter((l) => l.betrag > 0).map((l) => l.split_id));
 
     const unlinkedSplits = deps.db
       .prepare(
@@ -72,7 +84,7 @@ export function buildBankRouter(deps: BankDeps): Router {
       )
       .all(userId) as Array<{ id: string; betrag: number; created_at: number }>;
 
-    const candidates = unlinkedSplits.filter((s) => !linkedSplitIds.has(s.id));
+    const candidates = unlinkedSplits.filter((s) => !settledSplitIds.has(s.id));
     if (candidates.length === 0) return 0;
 
     const positiveTxs = txRepo
@@ -103,6 +115,9 @@ export function buildBankRouter(deps: BankDeps): Router {
 
       if (matchingTx) {
         insertLink.run(split.id, userId, matchingTx.id, now);
+        deps.db
+          .prepare("UPDATE split_requests SET status = 'accepted', updated_at = ? WHERE id = ?")
+          .run(now, split.id);
         usedTxIds.add(matchingTx.id);
         matched++;
       }
@@ -228,6 +243,16 @@ export function buildBankRouter(deps: BankDeps): Router {
         const exists = receiptRepo.findById(userId, receiptId);
         if (!exists) {
           return res.status(404).json({ error: `Receipt ${receiptId} not found` });
+        }
+        const conflict = deps.db
+          .prepare(
+            "SELECT id FROM bank_transactions WHERE user_id = ? AND matched_receipt_id = ? AND id != ?"
+          )
+          .get(userId, receiptId, transactionId) as { id: string } | undefined;
+        if (conflict) {
+          return res.status(409).json({
+            error: "Dieser Beleg ist bereits einer anderen Kontobewegung zugeordnet.",
+          });
         }
       }
 
