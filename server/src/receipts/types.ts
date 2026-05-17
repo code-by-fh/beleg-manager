@@ -1,5 +1,5 @@
 import type { Extraction } from "../gemini/schema.js";
-import type { ReceiptRow } from "../google/sheets.js";
+import type { ReceiptRow } from "./receiptRepo.js";
 
 export type PendingSource =
   | { kind: "upload"; mimeType: string; buffer: Buffer }
