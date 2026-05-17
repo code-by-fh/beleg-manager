@@ -54,6 +54,23 @@ CREATE TABLE IF NOT EXISTS failed_voice_jobs (
   error      TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS receipts (
+  id               TEXT PRIMARY KEY,
+  user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  datum            TEXT NOT NULL,
+  haendler         TEXT NOT NULL,
+  betrag           REAL NOT NULL,
+  mwst             REAL NOT NULL DEFAULT 0,
+  trinkgeld        REAL NOT NULL DEFAULT 0,
+  waehrung         TEXT NOT NULL DEFAULT 'EUR',
+  kategorie        TEXT NOT NULL DEFAULT '',
+  zahlungsmethode  TEXT NOT NULL DEFAULT '',
+  rechnungsnummer  TEXT NOT NULL DEFAULT '',
+  drive_link       TEXT NOT NULL DEFAULT '',
+  eingabe_typ      TEXT NOT NULL DEFAULT 'foto',
+  erstellt_am      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_user ON receipts(user_id);
 `;
 
 function addColumnIfMissing(db: Db, table: string, column: string, def: string) {
