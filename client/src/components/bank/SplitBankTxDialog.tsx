@@ -13,13 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, ArrowDownLeft } from "lucide-react";
 import { bankApi } from "@/api/bank";
-import { splitsApi } from "@/api/splits";
+import { splitRequestsApi } from "@/api/splitRequests";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
-import type { SplitRow } from "@/types/receipt";
+import type { OutgoingRequest } from "@/api/splitRequests";
 
 type Props = {
-  split: SplitRow | null;
+  split: OutgoingRequest | null;
   onClose: () => void;
   onLinked: () => void;
 };
@@ -31,7 +31,7 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
 
   useEffect(() => {
     if (split) setSearch("");
-  }, [split?.splitId]);
+  }, [split?.id]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bank-transactions"],
@@ -57,7 +57,7 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
     if (!split) return;
     setBusy(true);
     try {
-      await splitsApi.linkBankTx(split.splitId, bankTxId);
+      await splitRequestsApi.linkBankTx(split.id, bankTxId);
       toast({ title: "Kontobewegung verknüpft" });
       onClose();
       onLinked();
@@ -72,7 +72,7 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
     if (!split) return;
     setBusy(true);
     try {
-      await splitsApi.linkBankTx(split.splitId, null);
+      await splitRequestsApi.linkBankTx(split.id, null);
       toast({ title: "Verknüpfung aufgehoben" });
       onClose();
       onLinked();
@@ -90,9 +90,9 @@ export function SplitBankTxDialog({ split, onClose, onLinked }: Props) {
           <DialogTitle>Kontobewegung verknüpfen</DialogTitle>
           {split && (
             <DialogDescription>
-              <span className="font-medium text-foreground">{split.person}</span>
+              <span className="font-medium text-foreground">{split.toUser?.name ?? split.freeName}</span>
               {" schuldet "}
-              <span className="font-medium text-foreground">{formatCurrency(split.betrag, split.waehrung)}</span>
+              <span className="font-medium text-foreground">{formatCurrency(split.betrag, split.receiptMeta.waehrung)}</span>
             </DialogDescription>
           )}
         </DialogHeader>
