@@ -9,7 +9,7 @@ import type { HealthRepo } from "../monitoring/repo.js";
 const log = logger.child({ module: "telegram-bot" });
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor } from "../google/drive.js";
-import { sheetsFor, appendRow, type ReceiptRow } from "../google/sheets.js";
+import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { archiveBuffer } from "../receipts/archive.js";
 import { SUPPORTED_MIME_TYPES, SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 
@@ -57,6 +57,7 @@ export type TelegramBotDeps = {
   userRepo: UserRepo;
   gemini: GeminiClient;
   healthRepo?: HealthRepo;
+  receiptRepo: ReceiptRepo;
 };
 
 export function buildTelegramRouter(deps: TelegramBotDeps) {
@@ -125,26 +126,21 @@ export function buildTelegramRouter(deps: TelegramBotDeps) {
         }
       }
 
-      if (user.refreshToken && user.sheetId) {
-        const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-        const sheets = sheetsFor(auth);
-        const row: ReceiptRow = {
-          id: randomUUID(),
-          datum,
-          haendler,
-          betrag: extraction.betrag ?? 0,
-          mwst: extraction.mwst ?? 0,
-          trinkgeld: extraction.trinkgeld ?? 0,
-          waehrung: extraction.waehrung ?? "EUR",
-          kategorie: extraction.kategorie ?? "Sonstiges",
-          zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
-          rechnungsnummer: extraction.rechnungsnummer ?? "",
-          driveLink,
-          eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["telegram"],
-          erstelltAm: new Date().toISOString(),
-        };
-        await appendRow(sheets, user.sheetId, row);
-      }
+      deps.receiptRepo.insert(user.id, {
+        id: randomUUID(),
+        datum,
+        haendler,
+        betrag: extraction.betrag ?? 0,
+        mwst: extraction.mwst ?? 0,
+        trinkgeld: extraction.trinkgeld ?? 0,
+        waehrung: extraction.waehrung ?? "EUR",
+        kategorie: extraction.kategorie ?? "Sonstiges",
+        zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
+        rechnungsnummer: extraction.rechnungsnummer ?? "",
+        driveLink,
+        eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["telegram"],
+        erstelltAm: new Date().toISOString(),
+      });
 
       await telegramPost(user.telegramBotToken, "sendMessage", {
         chat_id: chatId,
