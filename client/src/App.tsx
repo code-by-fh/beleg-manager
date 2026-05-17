@@ -6,7 +6,6 @@ import { UploadPage } from "@/pages/Upload";
 import { ReviewPage } from "@/pages/Review";
 import { SettingsPage } from "@/pages/Settings";
 import { ReceiptsPage } from "@/pages/Receipts";
-import { SplitsPage } from "@/pages/Splits";
 import { KontoabgleichPage } from "@/pages/Kontoabgleich";
 import { RequestsPage } from "@/pages/Requests";
 import { MonitoringPage } from "@/pages/Monitoring";
@@ -31,7 +30,7 @@ export function App() {
               <Route path="/" element={<RootRedirect />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/receipts" element={<ReceiptsPage />} />
-              <Route path="/splits" element={<SplitsPage />} />
+              <Route path="/splits" element={<Navigate to="/requests" replace />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/kontoabgleich" element={<KontoabgleichPage />} />
               <Route path="/review/:pendingId" element={<ReviewPage />} />

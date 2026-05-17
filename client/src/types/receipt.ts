@@ -41,23 +41,6 @@ export type DriveInboxFile = {
   extracted: Extraction | null;
 };
 
-export type SplitStatus = "offen" | "angefordert" | "unterwegs" | "ohne_verrechnung";
-
-export type SplitRow = {
-  splitId: string;
-  receiptId: string;
-  haendler: string;
-  datum: string;
-  gesamtbetrag: number;
-  waehrung: string;
-  person: string;
-  betrag: number;
-  beglichen: boolean;
-  erstelltAm: string;
-  status: SplitStatus;
-  linkedBankTxId: string | null;
-  linkedBankTxSource: "manual" | "receipt" | null;
-};
 
 export type StatsSummary = {
   monthTotal: number;

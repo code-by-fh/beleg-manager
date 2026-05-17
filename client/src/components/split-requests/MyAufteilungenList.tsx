@@ -93,7 +93,7 @@ export function MyAufteilungenList() {
               <div className="divide-y divide-border">
                 {items.map((r) => {
                   const sk = getStatusKey(r);
-                  const { label, cls } = STATUS_CONFIG[sk] ?? STATUS_CONFIG.pending;
+                  const { label, cls } = STATUS_CONFIG[sk] ?? STATUS_CONFIG["pending"]!;
                   const linkedTx = r.linkedBankTxId ? txMap.get(r.linkedBankTxId) : undefined;
                   const personName = r.toUser?.name ?? r.freeName ?? "—";
                   return (

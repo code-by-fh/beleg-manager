@@ -2,18 +2,17 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, SplitSquareHorizontal, ArrowLeftRight, MoreHorizontal, X, HandCoins, Activity } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings, Sun, Moon, LogOut, Bell, Zap, Receipt, ArrowLeftRight, MoreHorizontal, X, HandCoins, Activity } from "lucide-react";
 import { useDriveInbox } from "@/hooks/useDriveInbox";
 import { usePendingCount } from "@/hooks/useSplitRequests";
 import { useFailedVoiceJobs } from "@/hooks/useFailedVoiceJobs";
 import { useState } from "react";
 
 const navItems = [
-  { to: "/",         label: "Dashboard",    icon: LayoutDashboard         },
-  { to: "/receipts", label: "Belege",       icon: Receipt                 },
-  { to: "/splits",   label: "Aufteilungen", icon: SplitSquareHorizontal   },
-  { to: "/requests", label: "Anforderungen", icon: HandCoins              },
-  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight      },
+  { to: "/",         label: "Dashboard",    icon: LayoutDashboard },
+  { to: "/receipts", label: "Belege",       icon: Receipt         },
+  { to: "/requests", label: "Aufteilungen", icon: HandCoins       },
+  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight },
   { to: "/upload",      label: "Erfassen",      icon: PlusCircle  },
   { to: "/monitoring",  label: "Monitoring",    icon: Activity    },
   { to: "/settings",    label: "Einstellungen", icon: Settings    },
@@ -22,8 +21,7 @@ const navItems = [
 const PAGE_TITLES: Record<string, string> = {
   "/":          "Dashboard",
   "/receipts":  "Belege",
-  "/splits":    "Aufteilungen",
-  "/requests":  "Anforderungen",
+  "/requests":  "Aufteilungen & Anforderungen",
   "/upload":          "Erfassen",
   "/kontoabgleich":   "Kontoabgleich",
   "/review":          "Prüfen",
@@ -32,9 +30,8 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 const moreItems = [
-  { to: "/splits",        label: "Aufteilungen",  icon: SplitSquareHorizontal },
-  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight        },
-  { to: "/settings",      label: "Einstellungen", icon: Settings              },
+  { to: "/kontoabgleich", label: "Kontoabgleich", icon: ArrowLeftRight },
+  { to: "/settings",      label: "Einstellungen", icon: Settings       },
 ];
 
 export function AppShell() {

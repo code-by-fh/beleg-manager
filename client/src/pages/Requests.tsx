@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { IncomingList } from "@/components/split-requests/IncomingList";
-import { OutgoingList } from "@/components/split-requests/OutgoingList";
+import { MyAufteilungenList } from "@/components/split-requests/MyAufteilungenList";
 import { CreateRequestDialog } from "@/components/split-requests/CreateRequestDialog";
 import { usePendingCount } from "@/hooks/useSplitRequests";
 
@@ -16,9 +16,9 @@ export function RequestsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Anforderungen</h1>
+          <h1 className="text-2xl font-semibold">Aufteilungen & Anforderungen</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-            Aufteilungsanforderungen von und an andere Nutzer
+            Aufteilungen deiner Belege und Anforderungen anderer Nutzer
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="flex items-center gap-2">
@@ -26,8 +26,9 @@ export function RequestsPage() {
           Neue Anforderung
         </Button>
       </div>
-      <Tabs defaultValue="incoming">
+      <Tabs defaultValue="aufteilungen">
         <TabsList>
+          <TabsTrigger value="aufteilungen">Meine Aufteilungen</TabsTrigger>
           <TabsTrigger value="incoming" className="flex items-center gap-2">
             Eingehend
             {count > 0 && (
@@ -36,13 +37,12 @@ export function RequestsPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="outgoing">Ausgehend</TabsTrigger>
         </TabsList>
+        <TabsContent value="aufteilungen" className="mt-4">
+          <MyAufteilungenList />
+        </TabsContent>
         <TabsContent value="incoming" className="mt-4">
           <IncomingList />
-        </TabsContent>
-        <TabsContent value="outgoing" className="mt-4">
-          <OutgoingList />
         </TabsContent>
       </Tabs>
       <CreateRequestDialog open={createOpen} onClose={() => setCreateOpen(false)} />
