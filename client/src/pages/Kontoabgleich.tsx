@@ -27,14 +27,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, ExternalLink, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, ExternalLink, Trash2, ChevronDown, ChevronUp, SplitSquareHorizontal } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { receiptsApi } from "@/api/receipts";
+import { splitRequestsApi } from "@/api/splitRequests";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { BelegZuordnenDialog } from "@/components/bank/BelegZuordnenDialog";
+import { SplitEditorDialog, type SplitContext } from "@/components/splits/SplitEditorDialog";
 import type { BankTransaction, DuplicateInfo } from "@/types/bank";
 import type { ReceiptRow } from "@/types/receipt";
+import type { OutgoingRequest } from "@/api/splitRequests";
 
 // ── Confidence badge ──────────────────────────────────────────────────────────
 
@@ -175,6 +178,7 @@ export function KontoabgleichPage() {
   // Action state
   const [autoMatching, setAutoMatching] = useState(false);
   const [assignTx, setAssignTx] = useState<BankTransaction | null>(null);
+  const [splitTx, setSplitTx] = useState<BankTransaction | null>(null);
   const [viewReceipt, setViewReceipt] = useState<ReceiptRow | null>(null);
   const [deleteConfirmTx, setDeleteConfirmTx] = useState<string | null>(null);
   const [busyTx, setBusyTx] = useState<string | null>(null);
@@ -195,11 +199,37 @@ export function KontoabgleichPage() {
     queryFn: () => receiptsApi.list(),
   });
 
+  const { data: outgoingData } = useQuery({
+    queryKey: ["split-requests", "outgoing"],
+    queryFn: () => splitRequestsApi.outgoing(),
+  });
+
   const receiptMap = useMemo<Map<string, ReceiptRow>>(() => {
     const map = new Map<string, ReceiptRow>();
     for (const r of receiptsData?.rows ?? []) map.set(r.id, r);
     return map;
   }, [receiptsData]);
+
+  // Map bankTxId → split requests linked to that transaction
+  const splitsByTxId = useMemo(() => {
+    const map = new Map<string, OutgoingRequest[]>();
+    for (const req of outgoingData?.requests ?? []) {
+      if (req.linkedBankTxId) {
+        const existing = map.get(req.linkedBankTxId) ?? [];
+        map.set(req.linkedBankTxId, [...existing, req]);
+      }
+    }
+    return map;
+  }, [outgoingData]);
+
+  const splitTxContext = useMemo((): SplitContext | null => {
+    if (!splitTx) return null;
+    return {
+      type: "bankTx",
+      transaction: splitTx,
+      existingSplits: splitsByTxId.get(splitTx.id) ?? [],
+    };
+  }, [splitTx, splitsByTxId]);
 
   const allTransactions = data?.transactions ?? [];
 
@@ -621,6 +651,22 @@ export function KontoabgleichPage() {
                                 </Button>
                                 <Button
                                   size="sm"
+                                  variant={splitsByTxId.has(tx.id) ? "secondary" : "outline"}
+                                  onClick={() => setSplitTx(tx)}
+                                  disabled={busyTx === tx.id}
+                                  title="Aufteilung anfordern"
+                                  className={splitsByTxId.has(tx.id) ? "text-blue-600" : ""}
+                                >
+                                  <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />
+                                  Aufteilen
+                                  {(splitsByTxId.get(tx.id)?.length ?? 0) > 0 && (
+                                    <span className="ml-1 rounded-full bg-blue-200 text-blue-700 px-1.5 text-[10px] font-bold leading-none">
+                                      {splitsByTxId.get(tx.id)!.length}
+                                    </span>
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
                                   variant="ghost"
                                   onClick={() => handleIgnore(tx)}
                                   disabled={busyTx === tx.id}
@@ -728,6 +774,22 @@ export function KontoabgleichPage() {
                                     disabled={busyTx === tx.id}
                                   >
                                     Neu zuordnen
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={splitsByTxId.has(tx.id) ? "secondary" : "outline"}
+                                    onClick={() => setSplitTx(tx)}
+                                    disabled={busyTx === tx.id}
+                                    title="Aufteilung anfordern"
+                                    className={splitsByTxId.has(tx.id) ? "text-blue-600" : ""}
+                                  >
+                                    <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />
+                                    Aufteilen
+                                    {(splitsByTxId.get(tx.id)?.length ?? 0) > 0 && (
+                                      <span className="ml-1 rounded-full bg-blue-200 text-blue-700 px-1.5 text-[10px] font-bold leading-none">
+                                        {splitsByTxId.get(tx.id)!.length}
+                                      </span>
+                                    )}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -917,6 +979,12 @@ export function KontoabgleichPage() {
           qc.invalidateQueries({ queryKey: ["split-requests"] });
         }}
         alreadyMatchedReceiptIds={alreadyMatchedIds}
+      />
+
+      {/* SplitEditorDialog */}
+      <SplitEditorDialog
+        context={splitTxContext}
+        onClose={() => setSplitTx(null)}
       />
 
       {/* Range delete dialog */}
