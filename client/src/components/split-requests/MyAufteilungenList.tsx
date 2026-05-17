@@ -19,8 +19,15 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   settled:   { label: "Ausgeglichen", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
 };
 
-function getStatusKey(r: OutgoingRequest): string {
-  return r.linkedBankTxId ? "settled" : r.status;
+function getStatusKey(
+  r: OutgoingRequest,
+  txMap: Map<string, { betrag: number }>,
+): string {
+  if (!r.linkedBankTxId) return r.status;
+  // Only "settled" when the linked transaction is an incoming payment (positive amount).
+  // A negative tx is the original expense (e.g. split created from Kontoabgleich) — not a settlement.
+  const tx = txMap.get(r.linkedBankTxId);
+  return tx && tx.betrag > 0 ? "settled" : r.status;
 }
 
 export function MyAufteilungenList() {
@@ -100,7 +107,7 @@ export function MyAufteilungenList() {
               </div>
               <div className="divide-y divide-border">
                 {items.map((r) => {
-                  const sk = getStatusKey(r);
+                  const sk = getStatusKey(r, txMap);
                   const { label, cls } = STATUS_CONFIG[sk] ?? STATUS_CONFIG["pending"]!;
                   const linkedTx = r.linkedBankTxId ? txMap.get(r.linkedBankTxId) : undefined;
                   const personName = r.toUser?.name ?? r.freeName ?? "—";
