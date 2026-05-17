@@ -1,46 +1,32 @@
 import { Router } from "express";
-import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
+import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
-import { sheetsFor, readAllRows } from "../google/sheets.js";
 import { computeSummary, computeMonthly, computeCategories, computeTopMerchants, computePaymentMethods } from "./compute.js";
 
-export function buildStatsRouter(config: Config, userRepo: UserRepo) {
+export function buildStatsRouter(userRepo: UserRepo, receiptRepo: ReceiptRepo) {
   const router = Router();
   router.use(requireAuth);
 
-  async function loadRows(req: any) {
+  function loadRows(req: any) {
     const userId = req.session.userId as string;
-    const user = userRepo.getById(userId);
-    if (!user?.sheetId || !user.refreshToken) return [];
-    const auth = buildOAuth2ClientForRefreshToken(config.google, user.refreshToken);
-    const sheets = sheetsFor(auth);
-    try {
-      return await readAllRows(sheets, user.sheetId);
-    } catch (err: any) {
-      if (err?.status === 404 || err?.code === 404) {
-        console.warn(`[stats] spreadsheet ${user.sheetId} not found, returning empty`);
-        return [];
-      }
-      throw err;
-    }
+    return receiptRepo.findAll(userId);
   }
 
-  router.get("/summary", async (req, res, next) => {
-    try { res.json(computeSummary(await loadRows(req))); } catch (e) { next(e); }
+  router.get("/summary", (req, res, next) => {
+    try { res.json(computeSummary(loadRows(req))); } catch (e) { next(e); }
   });
-  router.get("/monthly", async (req, res, next) => {
-    try { res.json(computeMonthly(await loadRows(req))); } catch (e) { next(e); }
+  router.get("/monthly", (req, res, next) => {
+    try { res.json(computeMonthly(loadRows(req))); } catch (e) { next(e); }
   });
-  router.get("/categories", async (req, res, next) => {
-    try { res.json(computeCategories(await loadRows(req))); } catch (e) { next(e); }
+  router.get("/categories", (req, res, next) => {
+    try { res.json(computeCategories(loadRows(req))); } catch (e) { next(e); }
   });
-  router.get("/top-merchants", async (req, res, next) => {
-    try { res.json(computeTopMerchants(await loadRows(req))); } catch (e) { next(e); }
+  router.get("/top-merchants", (req, res, next) => {
+    try { res.json(computeTopMerchants(loadRows(req))); } catch (e) { next(e); }
   });
-  router.get("/payment-methods", async (req, res, next) => {
-    try { res.json(computePaymentMethods(await loadRows(req))); } catch (e) { next(e); }
+  router.get("/payment-methods", (req, res, next) => {
+    try { res.json(computePaymentMethods(loadRows(req))); } catch (e) { next(e); }
   });
 
   return router;
