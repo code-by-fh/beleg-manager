@@ -114,10 +114,12 @@ export function buildBankRouter(deps: BankDeps): Router {
       });
 
       if (matchingTx) {
-        insertLink.run(split.id, userId, matchingTx.id, now);
-        deps.db
-          .prepare("UPDATE split_requests SET status = 'accepted', updated_at = ? WHERE id = ?")
-          .run(now, split.id);
+        deps.db.transaction(() => {
+          insertLink.run(split.id, userId, matchingTx.id, now);
+          deps.db
+            .prepare("UPDATE split_requests SET status = 'accepted', updated_at = ? WHERE id = ?")
+            .run(now, split.id);
+        })();
         usedTxIds.add(matchingTx.id);
         matched++;
       }
