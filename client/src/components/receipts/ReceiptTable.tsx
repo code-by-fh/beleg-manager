@@ -15,7 +15,7 @@ import { ReceiptFilters, type Filters } from "./ReceiptFilters";
 import { ReceiptForm } from "./ReceiptForm";
 import { SplitDialog } from "./SplitDialog";
 import { receiptsApi } from "@/api/receipts";
-import { splitsApi } from "@/api/splits";
+import { splitRequestsApi } from "@/api/splitRequests";
 import { bankApi } from "@/api/bank";
 import { useToast } from "@/components/ui/use-toast";
 import { KontobewegungZuordnenDialog } from "@/components/bank/KontobewegungZuordnenDialog";
@@ -95,13 +95,12 @@ function SortableHeader({
 export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const navigate = useNavigate();
   const { data, isLoading } = useReceipts();
-  const { data: splitsData } = useQuery({ queryKey: ["splits"], queryFn: () => splitsApi.list() });
+  const { data: outgoingData } = useQuery({ queryKey: ["split-requests", "outgoing"], queryFn: () => splitRequestsApi.outgoing() });
   const { data: bankData } = useQuery({ queryKey: ["bank-transactions"], queryFn: () => bankApi.listTransactions() });
   const qc = useQueryClient();
 
-  const allSplits = splitsData?.splits ?? [];
-  const splitReceiptIds = useMemo(() => new Set(allSplits.map((s) => s.receiptId)), [allSplits]);
-  const knownPersons = useMemo(() => [...new Set(allSplits.map((s) => s.person))].sort(), [allSplits]);
+  const outgoingRequests = outgoingData?.requests ?? [];
+  const splitReceiptIds = useMemo(() => new Set(outgoingRequests.filter((r) => r.receiptSqliteId).map((r) => r.receiptSqliteId!)), [outgoingRequests]);
   // Map receiptId → bankTxId for matched transactions
   const matchedReceiptTxMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -507,14 +506,13 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SplitDialog receipt={splitRow} allSplits={allSplits} knownPersons={knownPersons} onClose={() => setSplitRow(null)} />
+      <SplitDialog receipt={splitRow} existingRequests={outgoingRequests} onClose={() => setSplitRow(null)} />
       <KontobewegungZuordnenDialog
         receipt={linkTxRow}
         onClose={() => setLinkTxRow(null)}
         onAssigned={() => {
           setLinkTxRow(null);
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
-          qc.invalidateQueries({ queryKey: ["splits"] });
         }}
       />
     </>
