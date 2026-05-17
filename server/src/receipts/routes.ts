@@ -16,6 +16,7 @@ import { driveFor, uploadFile, setAppProperties } from "../google/drive.js";
 import { archiveExistingFile, archiveBuffer } from "./archive.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { logger } from "../logger.js";
+import { cleanErrorMessage } from "../gemini/errors.js";
 
 const log = logger.child({ module: "receipts-routes" });
 
@@ -110,10 +111,11 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       try {
         extraction = await deps.gemini.extractFromTranscript(transcript);
       } catch (geminiErr) {
+        log.error({ err: geminiErr }, "gemini extractFromTranscript failed");
         const jobId = deps.failedVoice.save({
           userId,
           transcript,
-          error: String((geminiErr as Error).message ?? geminiErr),
+          error: cleanErrorMessage(geminiErr),
         });
         return res.json({ ok: false, jobId });
       }
@@ -308,7 +310,8 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       try {
         extraction = await deps.gemini.extractFromTranscript(job.transcript);
       } catch (geminiErr) {
-        return res.status(502).json({ error: String((geminiErr as Error).message ?? geminiErr) });
+        log.error({ err: geminiErr }, "gemini extractFromTranscript failed (retry)");
+        return res.status(502).json({ error: cleanErrorMessage(geminiErr) });
       }
 
       const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);

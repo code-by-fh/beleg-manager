@@ -96,7 +96,7 @@ export function MonitoringPage() {
   const byName = Object.fromEntries((data?.services ?? []).map((s) => [s.serviceName, s]));
 
   return (
-    <div className="h-full w-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="max-w-7xl mx-auto w-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-center justify-between">
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           Automatische Aktualisierung alle 30 Sekunden

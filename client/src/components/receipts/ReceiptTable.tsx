@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid, Download } from "lucide-react";
 import { settingsApi } from "@/api/settings";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
@@ -128,10 +128,12 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     queryKey: ["ui-settings"],
     queryFn: () => settingsApi.getUI(),
   });
-  const [viewMode, setViewMode] = useState<"table" | "list">("table");
+  const [viewMode, setViewMode] = useState<"table" | "list">(() =>
+    window.innerWidth < 768 ? "list" : "table"
+  );
 
   useEffect(() => {
-    if (uiSettings?.receiptsViewMode) {
+    if (uiSettings?.receiptsViewMode != null) {
       setViewMode(uiSettings.receiptsViewMode);
     }
   }, [uiSettings]);
@@ -258,9 +260,11 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
             <a
               href="/api/receipts/export/csv"
               download="belege.csv"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
+              title="CSV exportieren"
             >
-              CSV exportieren
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">CSV exportieren</span>
             </a>
             <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border/40">
               <Button

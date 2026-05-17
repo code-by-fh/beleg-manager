@@ -24,9 +24,13 @@ const log = logger.child({ module: "inbox-poller" });
 
 export function startInboxPoller(deps: PollerDeps): { stop: () => void } {
   log.info("inbox poller started");
+  let running = false;
   const task = cron.schedule("*/5 * * * * *", () => {
+    if (running) return;
+    running = true;
     runOnce(deps)
       .then(({ processed, failed }) => {
+        running = false;
         deps.healthRepo?.upsert({
           serviceName: "drive-inbox-poller",
           lastRunAt: Date.now(),
@@ -37,6 +41,7 @@ export function startInboxPoller(deps: PollerDeps): { stop: () => void } {
         });
       })
       .catch((err) => {
+        running = false;
         log.error({ err }, "poll run failed");
         deps.healthRepo?.upsert({
           serviceName: "drive-inbox-poller",

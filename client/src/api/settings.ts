@@ -9,7 +9,7 @@ export const settingsApi = {
   setTelegramToken: (botToken: string | null) =>
     api.post<{ ok: true }>("/api/settings/telegram", { botToken }),
 
-  getUI: () => api.get<{ receiptsViewMode: "table" | "list"; startPage: string }>("/api/settings/ui"),
+  getUI: () => api.get<{ receiptsViewMode: "table" | "list" | null; startPage: string }>("/api/settings/ui"),
   setUI: (receiptsViewMode: "table" | "list", startPage: string) =>
     api.post<{ ok: true }>("/api/settings/ui", { receiptsViewMode, startPage }),
 };

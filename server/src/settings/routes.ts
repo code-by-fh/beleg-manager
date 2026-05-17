@@ -71,7 +71,7 @@ export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
   router.get("/ui", (req, res) => {
     const user = userRepo.getById(req.session.userId!);
     res.json({
-      receiptsViewMode: user?.receiptsViewMode ?? "table",
+      receiptsViewMode: user?.receiptsViewMode ?? null,
       startPage: user?.startPage ?? "/",
     });
   });

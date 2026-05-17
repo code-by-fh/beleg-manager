@@ -123,7 +123,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error({ err }, "unhandled error");
-    res.status(500).json({ error: err.message ?? "internal error" });
+    res.status(500).json({ error: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut." });
   });
 
   return app;

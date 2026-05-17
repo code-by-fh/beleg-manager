@@ -22,6 +22,7 @@ export function UnifiedInput() {
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const [previewFile, setPreviewFile] = useState<DriveInboxFile | null>(null);
   const [discardFileId, setDiscardFileId] = useState<string | null>(null);
 
@@ -50,6 +51,7 @@ export function UnifiedInput() {
     setFile(null);
     setTextInput("");
     setContext("");
+    setShowPreview(false);
   }
 
   function handleFileSelect(files: FileList | null) {
@@ -267,13 +269,25 @@ export function UnifiedInput() {
           <div className="p-6 flex flex-col items-center gap-6">
             <div className="clay-card-static rounded-[32px] p-5 w-full max-w-sm text-center space-y-2">
               {previewUrl ? (
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/20 mx-auto">
-                  <img
-                    src={previewUrl}
-                    alt="Vorschau"
-                    className="max-h-full max-w-full object-contain rounded-[20px] select-none"
-                  />
-                </div>
+                <>
+                  <button
+                    onClick={() => setShowPreview((v) => !v)}
+                    className="sm:hidden text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 mx-auto"
+                  >
+                    <Eye className="h-3 w-3" />
+                    {showPreview ? "Vorschau ausblenden" : "Vorschau anzeigen"}
+                  </button>
+                  <div className={cn(
+                    "relative aspect-[3/4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/20 mx-auto",
+                    showPreview ? "block" : "hidden sm:block"
+                  )}>
+                    <img
+                      src={previewUrl}
+                      alt="Vorschau"
+                      className="max-h-full max-w-full object-contain rounded-[20px] select-none"
+                    />
+                  </div>
+                </>
               ) : file.type === "application/pdf" ? (
                 <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center mx-auto">
                   <FileText className="h-6 w-6 text-background" />

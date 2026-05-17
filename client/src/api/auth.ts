@@ -4,7 +4,7 @@ export type Me = {
   id: string;
   email: string;
   name: string;
-  receiptsViewMode: "table" | "list";
+  receiptsViewMode: "table" | "list" | null;
   startPage: string;
 };
 

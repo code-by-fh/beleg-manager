@@ -6,6 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import type { PendingReceiptResponse } from "@/types/receipt";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ReceiptForm } from "./ReceiptForm";
@@ -86,7 +88,7 @@ function ManualEntryDialog({
                 <p className="mt-0.5">
                   <strong>{duplicate.haendler}</strong> · {duplicate.betrag} {duplicate.waehrung} · {duplicate.datum}
                 </p>
-                <p className="mt-1 text-[10px] opacity-80">Importieren ist blockiert, um Duplikate im Google Sheet zu verhindern.</p>
+                <p className="mt-1 text-[10px] opacity-80">Importieren ist blockiert, um Duplikate zu verhindern.</p>
               </div>
             </div>
             <button
@@ -178,6 +180,10 @@ export function FailedReceiptsSection() {
   const [manualFile, setManualFile] = useState<DriveInboxFile | null>(null);
   const [previewFile, setPreviewFile] = useState<DriveInboxFile | null>(null);
 
+  const navigate = useNavigate();
+  const retryingRef = useRef<Set<string>>(new Set());
+  const resultsRef = useRef<PendingReceiptResponse[]>([]);
+
   const failedVoice = voiceData?.jobs ?? [];
   const failedDrive = (inboxData?.files ?? []).filter((f) => f.status === "failed");
   const total = failedVoice.length + failedDrive.length;
@@ -185,16 +191,25 @@ export function FailedReceiptsSection() {
   if (total === 0) return null;
 
   async function retryDrive(fileId: string) {
+    retryingRef.current.add(fileId);
     setRetryingDrive(fileId);
     try {
-      await driveApi.importFile(fileId);
+      const res = await driveApi.importFile(fileId);
+      resultsRef.current.push(res);
       qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
       qc.invalidateQueries({ queryKey: ["receipts"] });
-      toast({ title: "Beleg erneut verarbeitet" });
     } catch (e) {
       toast({ title: "Fehler", description: String((e as Error).message) });
     } finally {
-      setRetryingDrive(null);
+      retryingRef.current.delete(fileId);
+      setRetryingDrive(retryingRef.current.size > 0 ? [...retryingRef.current][0] : null);
+      if (retryingRef.current.size === 0 && resultsRef.current.length > 0) {
+        const [first, ...rest] = resultsRef.current;
+        resultsRef.current = [];
+        navigate(`/review/${first.pendingId}`, {
+          state: { extraction: first.extraction, fileName: first.fileName, mimeType: first.mimeType, queue: rest },
+        });
+      }
     }
   }
 
@@ -244,13 +259,13 @@ export function FailedReceiptsSection() {
                 </button>
                 <button
                   onClick={() => retryDrive(f.id)}
-                  disabled={retryingDrive === f.id}
+                  disabled={retryingRef.current.has(f.id)}
                   className={cn(
                     "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors",
                     "bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400"
                   )}
                 >
-                  <RefreshCw className={cn("h-3 w-3", retryingDrive === f.id && "animate-spin")} />
+                  <RefreshCw className={cn("h-3 w-3", retryingRef.current.has(f.id) && "animate-spin")} />
                   Erneut
                 </button>
                 <button

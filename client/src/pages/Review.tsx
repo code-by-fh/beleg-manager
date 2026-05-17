@@ -9,7 +9,8 @@ import { CheckCircle2, ArrowLeft, AlertTriangle, Trash2, FileText } from "lucide
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-type LocationState = { extraction?: Extraction; fileName?: string; mimeType?: string } | null;
+type QueueItem = { pendingId: string; extraction: Extraction; fileName?: string; mimeType?: string | null };
+type LocationState = { extraction?: Extraction; fileName?: string; mimeType?: string; queue?: QueueItem[] } | null;
 
 export function ReviewPage() {
   const { pendingId } = useParams<{ pendingId: string }>();
@@ -97,11 +98,24 @@ export function ReviewPage() {
     rechnungsnummer: extraction.rechnungsnummer ?? "",
   };
 
+  const queue = state?.queue ?? [];
+
+  function navigateAfterAction() {
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
+      navigate(`/review/${next.pendingId}`, {
+        state: { extraction: next.extraction, fileName: next.fileName, mimeType: next.mimeType, queue: rest },
+      });
+    } else {
+      navigate("/");
+    }
+  }
+
   const isVoiceEntry = !mimeType;
 
   return (
     <div className="h-full overflow-auto">
-      <div className={`mx-auto px-4 py-6 pb-8 space-y-4 ${isVoiceEntry ? "max-w-lg" : "max-w-6xl"}`}>
+      <div className={`mx-auto px-4 py-6 pb-8 space-y-4 ${isVoiceEntry ? "max-w-lg" : "max-w-7xl"}`}>
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -110,10 +124,15 @@ export function ReviewPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-lg font-display font-bold gradient-text">Beleg prüfen</h1>
             {state?.fileName && <p className="text-muted-foreground text-xs">{state.fileName}</p>}
           </div>
+          {queue.length > 0 && (
+            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              Noch {queue.length} weitere{queue.length === 1 ? "r" : ""}
+            </span>
+          )}
         </div>
 
         {/* Info banner */}
@@ -131,7 +150,7 @@ export function ReviewPage() {
               <p className="mt-0.5">
                 <strong>{duplicate.haendler}</strong> · {duplicate.betrag} {duplicate.waehrung} · {duplicate.datum}
               </p>
-              <p className="mt-1 text-[10px] opacity-80">Importieren ist blockiert, um Duplikate im Google Sheet zu verhindern.</p>
+              <p className="mt-1 text-[10px] opacity-80">Importieren ist blockiert, um Duplikate zu verhindern.</p>
             </div>
           </div>
         )}
@@ -152,7 +171,7 @@ export function ReviewPage() {
                   qc.invalidateQueries({ queryKey: ["stats"] });
                   qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
                   toast({ title: "Beleg gespeichert" });
-                  navigate("/");
+                  navigateAfterAction();
                 } catch (e) {
                   toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
                 } finally {
@@ -227,7 +246,7 @@ export function ReviewPage() {
                       qc.invalidateQueries({ queryKey: ["stats"] });
                       qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
                       toast({ title: "Beleg gespeichert" });
-                      navigate("/");
+                      navigateAfterAction();
                     } catch (e) {
                       toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
                     } finally {
@@ -273,7 +292,7 @@ export function ReviewPage() {
                     await receiptsApi.deletePending(pendingId);
                     qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
                     toast({ title: "Beleg verworfen" });
-                    navigate("/");
+                    navigateAfterAction();
                   } catch (e) {
                     toast({ title: "Fehler beim Verwerfen", description: String((e as Error).message) });
                   } finally {

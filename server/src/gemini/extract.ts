@@ -4,7 +4,7 @@ import { ExtractionZ, GEMINI_RESPONSE_SCHEMA, emptyExtraction, type Extraction }
 import { SYSTEM_PROMPT, USER_PROMPT_PHOTO, USER_PROMPT_VOICE, USER_PROMPT_PHOTO_PLUS_VOICE } from "./prompts.js";
 import type { HealthRepo } from "../monitoring/repo.js";
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-3.1-flash-lite";
 const log = logger.child({ module: "gemini" });
 
 export type GeminiClient = {

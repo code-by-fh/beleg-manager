@@ -13,7 +13,7 @@ export type UserRow = {
   gmailPollingEnabled: boolean;
   gmailLabelFilter: string;
   telegramBotToken: string | null;
-  receiptsViewMode: "table" | "list";
+  receiptsViewMode: "table" | "list" | null;
   startPage: string;
 };
 

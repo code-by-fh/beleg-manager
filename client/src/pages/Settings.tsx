@@ -35,7 +35,9 @@ export function SettingsPage() {
     queryKey: ["ui-settings"],
     queryFn: () => settingsApi.getUI(),
   });
-  const [viewMode, setViewMode] = useState<"table" | "list">("table");
+  const [viewMode, setViewMode] = useState<"table" | "list">(() =>
+    window.innerWidth < 768 ? "list" : "table"
+  );
   const [startPage, setStartPage] = useState("/");
   const [uiSaving, setUISaving] = useState(false);
 
@@ -43,7 +45,7 @@ export function SettingsPage() {
     settingsApi.getGmail().then((r) => { setGmailEnabled(r.enabled); setGmailLabel(r.labelFilter); }).catch(() => {});
     settingsApi.getTelegram().then((r) => setTelegramConfigured(r.configured)).catch(() => {});
     if (uiSettings) {
-      setViewMode(uiSettings.receiptsViewMode);
+      if (uiSettings.receiptsViewMode != null) setViewMode(uiSettings.receiptsViewMode);
       setStartPage(uiSettings.startPage);
     }
   }, [uiSettings]);
@@ -109,7 +111,7 @@ export function SettingsPage() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-5xl mx-auto px-4 py-6 pb-10">
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-10">
         <h1
           className="text-2xl font-black gradient-text mb-8"
           style={{ fontFamily: "'DM Sans', sans-serif" }}

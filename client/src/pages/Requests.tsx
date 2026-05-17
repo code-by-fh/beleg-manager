@@ -13,7 +13,7 @@ export function RequestsPage() {
   const count = pendingCount.data ?? 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Aufteilungen</h1>
