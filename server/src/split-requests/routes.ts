@@ -239,6 +239,9 @@ export function buildSplitRequestsRouter(
       const { bankTxId } = parsed.data;
       if (bankTxId === null) {
         db.prepare("DELETE FROM split_bank_links WHERE split_id = ? AND user_id = ?").run(req.params.id, userId);
+        db.prepare(
+          "UPDATE split_requests SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'accepted'"
+        ).run(Date.now(), req.params.id);
       } else {
         db.prepare(
           "INSERT OR REPLACE INTO split_bank_links (split_id, user_id, bank_tx_id, created_at) VALUES (?, ?, ?, ?)"
@@ -254,10 +257,6 @@ export function buildSplitRequestsRouter(
       const splitReq = splitRequestRepo.getById(req.params.id!);
       if (!splitReq) return res.status(404).json({ error: "not found" });
       if (splitReq.fromUserId !== userId) return res.status(403).json({ error: "forbidden" });
-      const isFreeName = splitReq.toUserId === null;
-      if (!isFreeName && !["cancelled", "rejected"].includes(splitReq.status)) {
-        return res.status(409).json({ error: "can only delete cancelled or rejected requests" });
-      }
       splitRequestRepo.delete(req.params.id!);
       db.prepare("DELETE FROM split_bank_links WHERE split_id = ? AND user_id = ?").run(req.params.id, userId);
       res.json({ ok: true });
