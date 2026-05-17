@@ -42,7 +42,7 @@ export function ReviewPage() {
   const extraction = state?.extraction ?? fetchedExtraction;
   const mimeType = state?.mimeType ?? fetchedMimeType;
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleValuesChange = useCallback((values: { haendler: string; betrag: number; datum: string }) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
