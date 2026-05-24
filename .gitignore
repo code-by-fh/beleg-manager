@@ -11,3 +11,9 @@ data/
 coverage/
 playwright-report/
 test-results/
+
+# Local databases
+*.db
+
+# IDE settings
+.vscode/
