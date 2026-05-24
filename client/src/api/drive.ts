@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { DriveInboxFile, PendingReceiptResponse, ReceiptRow } from "@/types/receipt";
+import type { DriveInboxFile, PendingReceiptResponse, ReceiptRow, ArchiveTreeResponse, ArchiveFilesResponse } from "@/types/receipt";
 import type { ReceiptFormValues } from "@/lib/validators";
 
 export const driveApi = {
@@ -9,4 +9,6 @@ export const driveApi = {
     api.post<{ ok: true; row: ReceiptRow }>(`/api/drive/inbox/${fileId}/confirm-manual`, values),
   reset: () => api.post<{ ok: boolean }>("/api/drive/reset"),
   deleteInboxFile: (fileId: string) => api.delete<{ ok: true }>(`/api/drive/inbox/${fileId}`),
+  archiveTree: () => api.get<ArchiveTreeResponse>("/api/drive/archive/tree"),
+  archiveFiles: (folderId: string) => api.get<ArchiveFilesResponse>(`/api/drive/archive/${folderId}/files`),
 };

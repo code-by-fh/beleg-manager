@@ -59,3 +59,9 @@ export type MonthlyPoint = { ym: string; total: number };
 export type CategoryBucket = { kategorie: string; total: number };
 export type TopMerchantBucket = { haendler: string; total: number };
 export type PaymentMethodBucket = { methode: string; total: number; count: number };
+
+export type ArchiveMonth = { id: string; name: string };
+export type ArchiveYear = { id: string; name: string; months: ArchiveMonth[] };
+export type ArchiveTreeResponse = { years: ArchiveYear[] };
+export type ArchiveFile = { id: string; name: string; mimeType: string; modifiedTime: string };
+export type ArchiveFilesResponse = { files: ArchiveFile[] };
