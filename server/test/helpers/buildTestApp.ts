@@ -13,6 +13,7 @@ export const TEST_CONFIG: Config = {
   google: { clientId: "id", clientSecret: "s", callbackUrl: "http://localhost/cb" },
   geminiApiKey: "k",
   clientOrigin: "http://localhost:5173",
+  appPublicUrl: "http://localhost:5173",
 };
 
 export function makeTestApp(overrides?: { gemini?: GeminiClient }) {
