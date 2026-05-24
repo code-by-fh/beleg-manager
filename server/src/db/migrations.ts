@@ -168,4 +168,19 @@ export function runMigrations(db: Db): void {
       updated_at      INTEGER NOT NULL
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS share_links (
+      id           TEXT PRIMARY KEY,
+      token        TEXT NOT NULL UNIQUE,
+      from_user_id TEXT NOT NULL,
+      person_name  TEXT NOT NULL,
+      person_email TEXT NOT NULL,
+      created_at   INTEGER NOT NULL,
+      expires_at   INTEGER NOT NULL,
+      FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_share_links_token ON share_links(token)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_share_links_owner ON share_links(from_user_id, person_email)`);
 }
