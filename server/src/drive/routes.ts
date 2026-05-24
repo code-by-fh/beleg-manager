@@ -9,7 +9,7 @@ import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
-import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
+import { driveFor, listFolderFiles, downloadFile, setAppProperties, listSubfolders } from "../google/drive.js";
 import { archiveExistingFile } from "../receipts/archive.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
@@ -23,6 +23,8 @@ export type DriveRoutesDeps = {
 };
 
 const SUPPORTED = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const ArchiveFolderParamZ = z.object({ folderId: z.string().min(1) });
+const ArchiveFileParamZ = z.object({ fileId: z.string().min(1) });
 
 export function buildDriveRouter(deps: DriveRoutesDeps) {
   const router = Router();
@@ -216,6 +218,89 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       const drive = driveFor(auth);
       await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
       res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/archive/tree", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      if (!user.driveArchiveFolderId) return res.json({ years: [] });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+
+      const yearFolders = await listSubfolders(drive, user.driveArchiveFolderId);
+      const years = await Promise.all(
+        yearFolders.map(async (year) => {
+          const months = await listSubfolders(drive, year.id);
+          return { id: year.id, name: year.name, months };
+        })
+      );
+
+      res.json({ years });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/archive/:folderId/files", async (req, res, next) => {
+    try {
+      const paramParsed = ArchiveFolderParamZ.safeParse(req.params);
+      if (!paramParsed.success) return res.status(400).json({ error: "invalid params" });
+
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+
+      const rawFiles = await drive.files.list({
+        q: `'${paramParsed.data.folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
+        fields: "files(id,name,mimeType,modifiedTime)",
+        pageSize: 100,
+        orderBy: "name",
+      });
+
+      const files = (rawFiles.data.files ?? []).map((f) => ({
+        id: f.id!,
+        name: f.name!,
+        mimeType: f.mimeType ?? "application/octet-stream",
+        modifiedTime: f.modifiedTime ?? "",
+      }));
+
+      res.json({ files });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/archive/:fileId/preview", async (req, res, next) => {
+    try {
+      const paramParsed = ArchiveFileParamZ.safeParse(req.params);
+      if (!paramParsed.success) return res.status(400).json({ error: "invalid params" });
+
+      const userId = req.session.userId!;
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+
+      const meta = await drive.files.get({ fileId: paramParsed.data.fileId, fields: "mimeType" });
+      const mimeType = meta.data.mimeType ?? "application/octet-stream";
+      const fileRes = await drive.files.get(
+        { fileId: paramParsed.data.fileId, alt: "media" },
+        { responseType: "stream" }
+      );
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      (fileRes.data as NodeJS.ReadableStream).pipe(res);
     } catch (err) {
       next(err);
     }
