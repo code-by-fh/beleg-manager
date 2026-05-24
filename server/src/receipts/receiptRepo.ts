@@ -14,6 +14,7 @@ export type ReceiptRow = {
   driveLink: string;
   eingabeTyp: "foto" | "sprache" | "drive" | "telegram" | "email";
   erstelltAm: string;
+  positions?: Array<{ name: string; amount: number }> | null;
 };
 
 type DbReceiptRow = {
@@ -31,6 +32,7 @@ type DbReceiptRow = {
   drive_link: string;
   eingabe_typ: string;
   erstellt_am: string;
+  positions: string | null;
 };
 
 function fromDb(r: DbReceiptRow): ReceiptRow {
@@ -48,19 +50,20 @@ function fromDb(r: DbReceiptRow): ReceiptRow {
     driveLink: r.drive_link,
     eingabeTyp: r.eingabe_typ as ReceiptRow["eingabeTyp"],
     erstelltAm: r.erstellt_am,
+    positions: r.positions ? JSON.parse(r.positions) : null,
   };
 }
 
 export function createReceiptRepo(db: Db) {
   const insertStmt = db.prepare<[
     string, string, string, string, number, number, number,
-    string, string, string, string, string, string, string
+    string, string, string, string, string, string, string, string | null
   ]>(`
     INSERT INTO receipts
       (id, user_id, datum, haendler, betrag, mwst, trinkgeld,
        waehrung, kategorie, zahlungsmethode, rechnungsnummer,
-       drive_link, eingabe_typ, erstellt_am)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       drive_link, eingabe_typ, erstellt_am, positions)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const findAllStmt = db.prepare<[string]>(
@@ -76,12 +79,12 @@ export function createReceiptRepo(db: Db) {
   );
 
   const updateStmt = db.prepare<[
-    string, string, number, number, number, string, string, string, string, string, string, string, string, string
+    string, string, number, number, number, string, string, string, string, string, string, string, string | null, string, string
   ]>(`
     UPDATE receipts SET
       datum = ?, haendler = ?, betrag = ?, mwst = ?, trinkgeld = ?,
       waehrung = ?, kategorie = ?, zahlungsmethode = ?, rechnungsnummer = ?,
-      drive_link = ?, eingabe_typ = ?, erstellt_am = ?
+      drive_link = ?, eingabe_typ = ?, erstellt_am = ?, positions = ?
     WHERE user_id = ? AND id = ?
   `);
 
@@ -99,7 +102,8 @@ export function createReceiptRepo(db: Db) {
       insertStmt.run(
         row.id, userId, row.datum, row.haendler, row.betrag, row.mwst, row.trinkgeld,
         row.waehrung, row.kategorie, row.zahlungsmethode, row.rechnungsnummer,
-        row.driveLink, row.eingabeTyp, row.erstelltAm
+        row.driveLink, row.eingabeTyp, row.erstelltAm,
+        row.positions ? JSON.stringify(row.positions) : null
       );
     },
 
@@ -117,6 +121,7 @@ export function createReceiptRepo(db: Db) {
         row.datum, row.haendler, row.betrag, row.mwst, row.trinkgeld,
         row.waehrung, row.kategorie, row.zahlungsmethode, row.rechnungsnummer,
         row.driveLink, row.eingabeTyp, row.erstelltAm,
+        row.positions ? JSON.stringify(row.positions) : null,
         userId, row.id
       );
       return result.changes > 0;

@@ -13,6 +13,11 @@ export const CreateSplitRequestBody = z.object({
   }),
   betrag: z.number().positive(),
   nachricht: z.string().max(500).default(""),
+  positions: z.array(z.object({
+    name: z.string(),
+    amount: z.number(),
+    assigned: z.array(z.string()),
+  })).optional().nullable(),
 }).refine(
   (d) => d.toUserId || d.freeName,
   { message: "Either toUserId or freeName is required" }

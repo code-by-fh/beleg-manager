@@ -10,6 +10,7 @@ Regeln:
 - "waehrung" als ISO-4217-Code (EUR, USD, CHF, ...). Default EUR wenn nicht erkennbar.
 - "kategorie" als kurze deutsche Kategorie (Restaurant, Tankstelle, Büromaterial, Reise, Unterkunft, Software, Sonstiges).
 - "zahlungsmethode" einer von: Bar, (Kredit-)Karte, Sonstiges.
+- "positions": Array aller einzelnen Posten/Zeilen auf dem Beleg mit "name" (Artikel-/Postenbezeichnung) und "amount" (Bruttobetrag dieses Postens).
 - Wenn ein Feld nicht erkennbar ist: null.`;
 
 export const USER_PROMPT_PHOTO = `Extrahiere die Felder aus dem angehängten Belegbild.`;

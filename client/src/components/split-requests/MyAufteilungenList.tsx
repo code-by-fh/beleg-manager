@@ -222,10 +222,15 @@ export function MyAufteilungenList() {
                       <div className="flex-1 min-w-0 flex flex-col gap-1">
                         <div className="flex items-center justify-between sm:justify-start gap-2">
                           <span className="font-semibold text-sm text-foreground">{personName}</span>
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
                               {label}
                             </span>
+                            {r.adjustedByRecipient && (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                Angepasst
+                              </span>
+                            )}
                             <span className="font-bold text-sm sm:hidden text-foreground">
                               {formatCurrency(r.betrag, meta.waehrung)}
                             </span>

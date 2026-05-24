@@ -157,7 +157,7 @@ export function buildSplitRequestsRouter(
         return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
       }
 
-      const { toUserId, freeName, receiptId, receiptSqliteId, receiptMeta, betrag, nachricht } = parsed.data;
+      const { toUserId, freeName, receiptId, receiptSqliteId, receiptMeta, betrag, nachricht, positions } = parsed.data;
 
       if (toUserId === userId) {
         return res.status(400).json({ error: "cannot request from yourself" });
@@ -189,6 +189,7 @@ export function buildSplitRequestsRouter(
         receiptMeta,
         betrag,
         nachricht,
+        positions: positions ?? null,
       });
 
       res.status(201).json({ request: splitReq });

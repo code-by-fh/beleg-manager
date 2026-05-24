@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS receipts (
   rechnungsnummer  TEXT NOT NULL DEFAULT '',
   drive_link       TEXT NOT NULL DEFAULT '',
   eingabe_typ      TEXT NOT NULL DEFAULT 'foto',
-  erstellt_am      TEXT NOT NULL
+  erstellt_am      TEXT NOT NULL,
+  positions        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_receipts_user ON receipts(user_id);
 `;
@@ -87,6 +88,9 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
   addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
   addColumnIfMissing(db, "users", "start_page", "TEXT NOT NULL DEFAULT '/'");
+  addColumnIfMissing(db, "receipts", "positions", "TEXT");
+  addColumnIfMissing(db, "split_requests", "positions", "TEXT");
+  addColumnIfMissing(db, "split_requests", "adjusted_by_recipient", "INTEGER DEFAULT 0");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS split_requests (

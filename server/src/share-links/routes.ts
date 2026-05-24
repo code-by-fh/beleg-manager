@@ -82,16 +82,35 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
 
       const filtered = getFilteredRequests(link);
 
-      const requests = filtered.map((r) => ({
-        id: r.id,
-        haendler: r.receiptMeta.haendler,
-        datum: r.receiptMeta.datum,
-        betrag: r.betrag,
-        waehrung: r.receiptMeta.waehrung,
-        nachricht: r.nachricht,
-        status: r.status,
-        hasReceipt: !!r.receiptId,
-      }));
+      const requests = filtered.map((r) => {
+        let positionsList = r.positions;
+        if ((!positionsList || positionsList.length === 0) && r.receiptSqliteId) {
+          const rc = db.prepare("SELECT positions FROM receipts WHERE id = ?").get(r.receiptSqliteId) as { positions: string | null } | undefined;
+          if (rc?.positions) {
+            try {
+              const parsedPositions = JSON.parse(rc.positions) as Array<{ name: string; amount: number }>;
+              positionsList = parsedPositions.map((pos) => ({
+                name: pos.name,
+                amount: pos.amount,
+                assigned: []
+              }));
+            } catch {}
+          }
+        }
+
+        return {
+          id: r.id,
+          haendler: r.receiptMeta.haendler,
+          datum: r.receiptMeta.datum,
+          betrag: r.betrag,
+          waehrung: r.receiptMeta.waehrung,
+          nachricht: r.nachricht,
+          status: r.status,
+          hasReceipt: !!r.receiptId,
+          positions: positionsList || null,
+          adjustedByRecipient: r.adjustedByRecipient || false,
+        };
+      });
 
       res.json({ personName: link.personName, requests, expiresAt: link.expiresAt });
     } catch (err) { next(err); }
@@ -152,6 +171,32 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
       if (splitReq.status !== "pending") return res.status(409).json({ error: "request already resolved" });
 
       splitRequestRepo.updateStatus(req.params.requestId!, status);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  // Public request adjustment & accept via share token
+  router.patch("/:token/requests/:requestId/adjust", publicActionLimit, (req, res, next) => {
+    try {
+      const parsed = TokenParams.safeParse(req.params);
+      if (!parsed.success) return res.status(400).json({ error: "invalid token" });
+
+      const link = resolveToken(parsed.data.token);
+      if (!link) return res.status(410).json({ error: "link expired or not found" });
+
+      const { betrag, positions } = req.body as { betrag?: number; positions?: any[] };
+      if (typeof betrag !== "number" || betrag <= 0 || !Array.isArray(positions)) {
+        return res.status(400).json({ error: "invalid adjustment data" });
+      }
+
+      const filtered = getFilteredRequests(link);
+      const splitReq = filtered.find((r) => r.id === req.params.requestId);
+      if (!splitReq) return res.status(404).json({ error: "not found" });
+      if (splitReq.status !== "pending" && splitReq.status !== "accepted") {
+        return res.status(409).json({ error: "request cannot be adjusted" });
+      }
+
+      splitRequestRepo.adjustRequest(req.params.requestId!, betrag, positions);
       res.json({ ok: true });
     } catch (err) { next(err); }
   });

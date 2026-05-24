@@ -10,6 +10,12 @@ export const ExtractionZ = z.object({
   kategorie: z.string().nullable(),
   zahlungsmethode: z.string().nullable(),
   rechnungsnummer: z.string().nullable(),
+  positions: z.array(
+    z.object({
+      name: z.string(),
+      amount: z.number(),
+    })
+  ).nullable().optional(),
 });
 
 export type Extraction = z.infer<typeof ExtractionZ>;
@@ -26,8 +32,21 @@ export const GEMINI_RESPONSE_SCHEMA = {
     kategorie: { type: "string", nullable: true },
     zahlungsmethode: { type: "string", nullable: true },
     rechnungsnummer: { type: "string", nullable: true },
+    positions: {
+      type: "array",
+      nullable: true,
+      description: "List of individual line items/positions on the receipt.",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Name or description of the line item" },
+          amount: { type: "number", description: "Price or amount of the line item" },
+        },
+        required: ["name", "amount"],
+      },
+    },
   },
-  required: ["datum", "haendler", "betrag", "mwst", "trinkgeld", "waehrung", "kategorie", "zahlungsmethode", "rechnungsnummer"],
+  required: ["datum", "haendler", "betrag", "mwst", "trinkgeld", "waehrung", "kategorie", "zahlungsmethode", "rechnungsnummer", "positions"],
 } as const;
 
 export function emptyExtraction(): Extraction {
@@ -41,5 +60,38 @@ export function emptyExtraction(): Extraction {
     kategorie: null,
     zahlungsmethode: null,
     rechnungsnummer: null,
+    positions: null,
   };
 }
+
+export const ReceiptPositionsZ = z.object({
+  items: z.array(
+    z.object({
+      name: z.string(),
+      amount: z.number(),
+    })
+  ),
+  total: z.number(),
+});
+
+export type ReceiptPositions = z.infer<typeof ReceiptPositionsZ>;
+
+export const GEMINI_POSITIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Name/description of the line item" },
+          amount: { type: "number", description: "Price/amount of the line item" },
+        },
+        required: ["name", "amount"],
+      },
+    },
+    total: { type: "number", description: "Total receipt amount" },
+  },
+  required: ["items", "total"],
+} as const;
+

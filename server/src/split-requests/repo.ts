@@ -23,9 +23,15 @@ export type SplitRequestRow = {
   status: SplitRequestStatus;
   createdAt: number;
   updatedAt: number;
+  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
+  adjustedByRecipient?: boolean;
 };
 
-type RawRow = Omit<SplitRequestRow, "receiptMeta"> & { receiptMeta: string };
+type RawRow = Omit<SplitRequestRow, "receiptMeta" | "positions" | "adjustedByRecipient"> & {
+  receiptMeta: string;
+  positions?: string | null;
+  adjusted_by_recipient?: number;
+};
 
 const SELECT_COLS = `
   id,
@@ -37,11 +43,19 @@ const SELECT_COLS = `
   receipt_meta      AS receiptMeta,
   betrag, nachricht, status,
   created_at AS createdAt,
-  updated_at AS updatedAt
+  updated_at AS updatedAt,
+  positions,
+  adjusted_by_recipient AS adjustedByRecipient
 `;
 
 function parseRow(raw: RawRow): SplitRequestRow {
-  return { ...raw, receiptMeta: JSON.parse(raw.receiptMeta) as ReceiptMeta };
+  const { receiptMeta, positions, ...rest } = raw;
+  return {
+    ...rest,
+    receiptMeta: JSON.parse(receiptMeta) as ReceiptMeta,
+    positions: positions ? JSON.parse(positions) : null,
+    adjustedByRecipient: raw.adjusted_by_recipient === 1 || !!(raw as any).adjustedByRecipient,
+  } as SplitRequestRow;
 }
 
 export function createSplitRequestRepo(db: Db) {
@@ -55,15 +69,16 @@ export function createSplitRequestRepo(db: Db) {
       receiptMeta: ReceiptMeta;
       betrag: number;
       nachricht: string;
+      positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
     }): SplitRequestRow {
       const now = Date.now();
       const id = uuidv4();
       db.prepare(
         `INSERT INTO split_requests
           (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
-           receipt_meta, betrag, nachricht, status, created_at, updated_at)
+           receipt_meta, betrag, nachricht, status, created_at, updated_at, positions)
          VALUES (@id, @fromUserId, @toUserId, @freeName, @receiptId, @receiptSqliteId,
-                 @receiptMeta, @betrag, @nachricht, 'pending', @now, @now)`
+                 @receiptMeta, @betrag, @nachricht, 'pending', @now, @now, @positions)`
       ).run({
         id,
         fromUserId: input.fromUserId,
@@ -75,6 +90,7 @@ export function createSplitRequestRepo(db: Db) {
         betrag: input.betrag,
         nachricht: input.nachricht,
         now,
+        positions: input.positions ? JSON.stringify(input.positions) : null,
       });
       return this.getById(id)!;
     },
@@ -111,6 +127,15 @@ export function createSplitRequestRepo(db: Db) {
       const result = db.prepare(
         `UPDATE split_requests SET status = ?, updated_at = ? WHERE id = ?`
       ).run(status, Date.now(), id);
+      return result.changes > 0;
+    },
+
+    adjustRequest(id: string, betrag: number, positions: Array<{ name: string; amount: number; assigned: string[] }>): boolean {
+      const result = db.prepare(
+        `UPDATE split_requests 
+         SET betrag = ?, positions = ?, status = 'accepted', adjusted_by_recipient = 1, updated_at = ?
+         WHERE id = ?`
+      ).run(betrag, JSON.stringify(positions), Date.now(), id);
       return result.changes > 0;
     },
 

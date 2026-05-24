@@ -17,6 +17,7 @@ export type PublicSplitRequestItem = {
   nachricht: string;
   status: string;
   hasReceipt: boolean;
+  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
 };
 
 export type PublicShareData = {
@@ -38,6 +39,9 @@ export const shareLinksApi = {
 
   updateStatus: (token: string, requestId: string, status: "accepted" | "rejected") =>
     api.patch<{ ok: true }>(`/api/share-links/${token}/requests/${requestId}/status`, { status }),
+
+  adjustSplit: (token: string, requestId: string, payload: { betrag: number; positions: any[] }) =>
+    api.patch<{ ok: true }>(`/api/share-links/${token}/requests/${requestId}/adjust`, payload),
 
   receiptPreviewUrl: (token: string, requestId: string) =>
     `/api/share-links/${token}/requests/${requestId}/preview`,

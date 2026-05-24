@@ -58,4 +58,6 @@ export const receiptsApi = {
     api.get<{ jobs: FailedVoiceJob[] }>("/api/receipts/failed-voice"),
   retryVoice: (jobId: string) =>
     api.post<{ ok: true }>(`/api/receipts/retry-voice/${jobId}`, {}),
+  extractPositions: (id: string) =>
+    api.post<{ items: Array<{ name: string; amount: number }>; total: number }>(`/api/receipts/${id}/positions`, {}),
 };

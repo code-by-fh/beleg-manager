@@ -12,13 +12,22 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { uploadSingleImage } from "../middleware/upload.js";
 import { uploadRateLimit } from "../middleware/rateLimit.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
-import { driveFor, uploadFile, setAppProperties } from "../google/drive.js";
+import { driveFor, uploadFile, setAppProperties, downloadFile } from "../google/drive.js";
 import { archiveExistingFile, archiveBuffer } from "./archive.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { logger } from "../logger.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
 
 const log = logger.child({ module: "receipts-routes" });
+
+function extractDriveFileId(driveLink: string): string | null {
+  if (!driveLink) return null;
+  const fdMatch = driveLink.match(/\/file\/d\/([^/?#]+)/);
+  if (fdMatch && fdMatch[1]) return fdMatch[1];
+  const idMatch = driveLink.match(/[?&]id=([^&#]+)/);
+  if (idMatch && idMatch[1]) return idMatch[1];
+  return null;
+}
 
 const VoiceBody = z.object({ transcript: z.string().min(1).max(4000) });
 
@@ -208,6 +217,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         driveLink,
         eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP[pending.source.kind],
         erstelltAm: new Date().toISOString(),
+        positions: pending.extraction.positions || null,
       };
       deps.receiptRepo.insert(userId, row);
       res.json({ ok: true, row });
@@ -379,6 +389,54 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     const userId = req.session.userId!;
     const rows = deps.receiptRepo.findAll(userId);
     res.json({ rows });
+  });
+
+  router.post("/:id/positions", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const receipt = deps.receiptRepo.findById(userId, req.params.id);
+      if (!receipt) return res.status(404).json({ error: "receipt not found" });
+
+      // 1. If positions already extracted and cached, return instantly!
+      if (receipt.positions && receipt.positions.length > 0) {
+        return res.json({ items: receipt.positions, total: receipt.betrag });
+      }
+
+      // 2. Fallback for older receipts: extract dynamically via Gemini
+      const driveFileId = extractDriveFileId(receipt.driveLink);
+      if (!driveFileId) {
+        return res.status(400).json({ error: "Kein Google Drive Link für diesen Beleg vorhanden." });
+      }
+
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) {
+        return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
+      }
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+
+      // Get file mimeType
+      const meta = await drive.files.get({ fileId: driveFileId, fields: "mimeType" });
+      const mimeType = meta.data.mimeType ?? "application/octet-stream";
+
+      // Download file content as Buffer
+      const buffer = await downloadFile(drive, driveFileId);
+
+      // Call Gemini to extract positions
+      const positions = await deps.gemini.extractPositions({ mimeType, buffer });
+
+      // Save extracted positions to DB for future near-instant access
+      if (positions.items && positions.items.length > 0) {
+        receipt.positions = positions.items;
+        deps.receiptRepo.update(userId, receipt);
+      }
+
+      res.json(positions);
+    } catch (err) {
+      log.error({ err, id: req.params.id }, "failed to extract positions");
+      next(err);
+    }
   });
 
   router.put("/:id", (req, res) => {

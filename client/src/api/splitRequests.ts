@@ -26,6 +26,8 @@ export type SplitRequest = {
   updatedAt: number;
   linkedBankTxId: string | null;
   linkedBankTxSource: "manual" | "receipt" | null;
+  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
+  adjustedByRecipient?: boolean;
 };
 
 export type IncomingRequest = SplitRequest & { fromUser: UserInfo | null };
@@ -48,6 +50,7 @@ export const splitRequestsApi = {
     receiptMeta: ReceiptMeta;
     betrag: number;
     nachricht: string;
+    positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
   }) => api.post<{ request: SplitRequest }>("/api/split-requests", payload),
 
   updateStatus: (id: string, status: SplitRequestStatus) =>

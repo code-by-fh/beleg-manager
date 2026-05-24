@@ -23,6 +23,7 @@ export type ReceiptRow = {
   driveLink: string;
   eingabeTyp: "foto" | "sprache" | "drive" | "telegram" | "email";
   erstelltAm: string;
+  positions?: Array<{ name: string; amount: number }> | null;
 };
 
 export type EingabeTyp = ReceiptRow["eingabeTyp"];
