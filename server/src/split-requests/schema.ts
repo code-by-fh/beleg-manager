@@ -19,7 +19,7 @@ export const CreateSplitRequestBody = z.object({
 );
 
 export const UpdateStatusBody = z.object({
-  status: z.enum(["pending", "accepted", "rejected", "cancelled"]),
+  status: z.enum(["pending", "accepted", "rejected", "cancelled", "settled"]),
   grund: z.string().max(500).optional(),
 });
 

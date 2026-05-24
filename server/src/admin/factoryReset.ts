@@ -1,3 +1,4 @@
+import Database from "better-sqlite3";
 import type { Db } from "../db/index.js";
 import { google } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
@@ -45,11 +46,18 @@ async function retryOperation<T>(
 
 export async function resetLocalData(db: Db, userId: string): Promise<ResetResult> {
   try {
-    // Delete user record
+    // Explicit deletions in dependency order (children before parent)
+    db.prepare("DELETE FROM split_bank_links WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM split_requests WHERE from_user_id = ? OR to_user_id = ?").run(userId, userId);
+    db.prepare("DELETE FROM bank_transactions WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM receipts WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM failed_uploads WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM failed_voice_jobs WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM gmail_processed_messages WHERE user_id = ?").run(userId);
     db.prepare("DELETE FROM users WHERE id = ?").run(userId);
 
     // Delete all sessions for this user
-    const sessionDb = new (require("better-sqlite3") as any)("data/sessions.sqlite");
+    const sessionDb = new Database("data/sessions.sqlite");
     try {
       // Get all sessions and find ones belonging to this user
       const sessions = sessionDb
@@ -117,28 +125,9 @@ export async function resetGoogleDrive(
       };
     }
 
-    // Delete sheet separately (it's a file in Drive)
-    if (user.sheetId) {
-      const { result: sheetResult, retryCount: sheetRetries, error: sheetError } =
-        await retryOperation(async () => {
-          await drive.files.delete({ fileId: user.sheetId! });
-          return true;
-        }, 3);
-
-      if (!sheetResult) {
-        const sheetErrorMsg =
-          sheetError?.message || "Unbekannter Fehler beim Löschen des Sheet";
-        return {
-          success: false,
-          message: `Nach ${sheetRetries} Versuchen fehlgeschlagen: ${sheetErrorMsg}`,
-          retried: sheetRetries,
-        };
-      }
-    }
-
     return {
       success: true,
-      message: "Beleg-Manager-Ordner und Sheet gelöscht",
+      message: "Beleg-Manager-Ordner gelöscht",
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

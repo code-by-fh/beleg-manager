@@ -156,7 +156,7 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
           splitRequestsApi.create({
             toUserId: i.toUser?.id,
             freeName: i.toUser ? undefined : (i.freeName.trim() || i.searchInput.trim()),
-            receiptId: i.toUser && driveFileId ? driveFileId : undefined,
+            receiptId: driveFileId ?? undefined,
             receiptSqliteId,
             receiptMeta,
             betrag: parseFloat(i.betrag),
@@ -165,11 +165,13 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
         )
       );
 
-      // 4. Link to bank tx
+      // 4. Link to bank tx — only positive incoming payments are valid settlement links.
+      // For receipt context, linkedBankTxId is the expense tx (negative) matched to the receipt,
+      // not a settlement payment. Skip auto-linking; users link settlements via SplitBankTxDialog.
       const bankTxId =
         ctx.type === "receipt"
-          ? (ctx.linkedBankTxId ?? null)
-          : ctx.transaction.id;
+          ? null
+          : ctx.transaction.betrag > 0 ? ctx.transaction.id : null;
 
       if (bankTxId) {
         await Promise.all(

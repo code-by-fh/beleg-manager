@@ -321,7 +321,7 @@ export function SettingsPage() {
             <div className="flex-grow space-y-3 border-t border-red-200/50 dark:border-red-500/15 pt-3">
               {[
                 { id: "reset-local",  key: "localData",    label: "Lokale Daten löschen",       desc: "Löscht SQLite-DB und Sessions" },
-                { id: "reset-google", key: "googleDrive",  label: "Google Drive Daten löschen", desc: "Löscht Ordner und Sheet aus Drive" },
+                { id: "reset-google", key: "googleDrive",  label: "Google Drive Daten löschen", desc: "Löscht Beleg-Manager Ordner aus Drive" },
               ].map(({ id, key, label, desc }) => (
                 <label key={id} htmlFor={id} className="flex items-start gap-3 cursor-pointer">
                   <Checkbox
@@ -364,7 +364,7 @@ export function SettingsPage() {
           </DialogHeader>
           <div className="space-y-1.5 py-2 text-sm text-foreground/80">
             {resetOptions.localData   && <p>• Lokale Daten (SQLite-DB + Sessions)</p>}
-            {resetOptions.googleDrive && <p>• Beleg-Manager Ordner + Sheet aus Google Drive</p>}
+            {resetOptions.googleDrive && <p>• Beleg-Manager Ordner aus Google Drive</p>}
           </div>
           <label htmlFor="confirm-understand" className="flex items-start gap-3 cursor-pointer py-3 border-t border-border/40">
             <Checkbox

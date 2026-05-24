@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, ExternalLink, Trash2, ChevronDown, ChevronUp, SplitSquareHorizontal } from "lucide-react";
+import { Upload, ExternalLink, Trash2, ChevronDown, ChevronUp, SplitSquareHorizontal, ArrowDownLeft } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { receiptsApi } from "@/api/receipts";
 import { splitRequestsApi } from "@/api/splitRequests";
@@ -591,8 +591,22 @@ export function KontoabgleichPage() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="matched">Abgeglichen</TabsTrigger>
-            <TabsTrigger value="ignored">Ignoriert</TabsTrigger>
+            <TabsTrigger value="matched">
+              Abgeglichen{" "}
+              {matched.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-green-100 text-green-700 px-1.5 text-[10px] font-bold">
+                  {matched.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="ignored">
+              Ignoriert{" "}
+              {ignored.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-slate-100 text-slate-700 px-1.5 text-[10px] font-bold">
+                  {ignored.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Nicht zugeordnet ── */}
@@ -612,7 +626,9 @@ export function KontoabgleichPage() {
                   {unmatched.length === 0 ? (
                     <EmptyRow colSpan={5} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
                   ) : (
-                    unmatched.map((tx) => (
+                    unmatched.map((tx) => {
+                      const linkedSplits = splitsByTxId.get(tx.id) ?? [];
+                      return (
                       <TableRow
                         key={tx.id}
                         className="hover:bg-muted/30 transition-colors border-b border-border"
@@ -620,7 +636,18 @@ export function KontoabgleichPage() {
                         <TableCell className="text-muted-foreground">
                           {formatDateIso(tx.buchungsdatum)}
                         </TableCell>
-                        <TableCell className="font-medium">{tx.haendler}</TableCell>
+                        <TableCell>
+                          <div className="font-medium leading-tight">{tx.haendler}</div>
+                          {linkedSplits.length > 0 && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <ArrowDownLeft className="h-3 w-3 text-green-600 shrink-0" />
+                              <span className="text-xs text-green-700 font-medium">
+                                {linkedSplits.map((s) => s.freeName ?? s.toUser?.name ?? "Unbekannt").join(", ")}
+                                {" · "}{formatCurrency(linkedSplits.reduce((sum, s) => sum + s.betrag, 0))}
+                              </span>
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <BetragCell betrag={tx.betrag} />
                         </TableCell>
@@ -685,7 +712,7 @@ export function KontoabgleichPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                    );})
                   )}
                 </TableBody>
               </Table>
@@ -751,9 +778,21 @@ export function KontoabgleichPage() {
                                   {formatCurrency(receipt.betrag, receipt.waehrung)}
                                 </span>
                               </button>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                            ) : (() => {
+                              const linked = splitsByTxId.get(tx.id) ?? [];
+                              if (linked.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <ArrowDownLeft className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                  <span className="text-sm font-medium text-green-700">
+                                    {linked.map((s) => s.freeName ?? s.toUser?.name ?? "Unbekannt").join(", ")}
+                                  </span>
+                                  <span className="text-muted-foreground text-xs">
+                                    · {formatCurrency(linked.reduce((sum, s) => sum + s.betrag, 0))}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">

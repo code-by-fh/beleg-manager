@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { driveApi } from "@/api/drive";
 import { DriveArchiveTree } from "./DriveArchiveTree";
 import {
@@ -16,18 +17,34 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ArchiveFile } from "@/types/receipt";
 
-function PreviewContent({ file }: { file: ArchiveFile }) {
+function PreviewContent({ file, zoomable = false }: { file: ArchiveFile; zoomable?: boolean }) {
   const previewUrl = `/api/drive/archive/${file.id}/preview`;
   const isImage = file.mimeType.startsWith("image/");
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden bg-black/5 dark:bg-white/5 flex items-center justify-center">
         {isImage ? (
-          <img
-            src={previewUrl}
-            alt={file.name}
-            className="max-h-full max-w-full object-contain"
-          />
+          zoomable ? (
+            <TransformWrapper minScale={0.5} maxScale={8} centerOnInit>
+              <TransformComponent
+                wrapperStyle={{ width: "100%", height: "100%" }}
+                contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <img
+                  src={previewUrl}
+                  alt={file.name}
+                  className="max-h-full max-w-full object-contain"
+                  draggable={false}
+                />
+              </TransformComponent>
+            </TransformWrapper>
+          ) : (
+            <img
+              src={previewUrl}
+              alt={file.name}
+              className="max-h-full max-w-full object-contain"
+            />
+          )
         ) : (
           <iframe
             src={previewUrl}
@@ -84,7 +101,9 @@ export function DriveArchiveTab() {
 
   function handleFileClick(file: ArchiveFile) {
     setSelectedFile(file);
-    setMobilePreviewOpen(true);
+    if (window.innerWidth < 768) {
+      setMobilePreviewOpen(true);
+    }
   }
 
   if (treeQuery.isLoading) {
@@ -121,9 +140,9 @@ export function DriveArchiveTab() {
 
   return (
     <>
-      <div className="flex h-[calc(100vh-16rem)] rounded-xl border border-[hsl(var(--border))] overflow-hidden">
+      <div className="flex flex-col md:flex-row md:h-[calc(100vh-16rem)] rounded-xl border border-[hsl(var(--border))] overflow-hidden">
         {/* Tree sidebar */}
-        <div className="w-52 shrink-0 border-r border-[hsl(var(--border))] p-3 overflow-y-auto">
+        <div className="md:w-52 md:shrink-0 border-b md:border-b-0 md:border-r border-[hsl(var(--border))] p-3 overflow-y-auto max-h-48 md:max-h-none">
           <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-3 px-2">
             Archiv
           </p>
@@ -135,7 +154,7 @@ export function DriveArchiveTab() {
         </div>
 
         {/* File list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-48">
           {filesQuery.isLoading && (
             <div className="flex items-center justify-center h-32 gap-2 text-[hsl(var(--muted-foreground))] text-sm">
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -208,7 +227,11 @@ export function DriveArchiveTab() {
               {selectedFile?.name}
             </DialogTitle>
           </DialogHeader>
-          {selectedFile && <PreviewContent file={selectedFile} />}
+          {selectedFile && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PreviewContent file={selectedFile} zoomable />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

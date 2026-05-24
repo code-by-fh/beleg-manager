@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Db } from "../db/index.js";
 
-export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled";
+export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled" | "settled";
 
 export type ReceiptMeta = {
   haendler: string;

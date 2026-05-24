@@ -1,6 +1,6 @@
 import { api } from "./client";
 
-export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled";
+export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled" | "settled";
 
 export type ReceiptMeta = {
   haendler: string;
@@ -50,7 +50,7 @@ export const splitRequestsApi = {
     nachricht: string;
   }) => api.post<{ request: SplitRequest }>("/api/split-requests", payload),
 
-  updateStatus: (id: string, status: "pending" | "accepted" | "rejected" | "cancelled") =>
+  updateStatus: (id: string, status: SplitRequestStatus) =>
     api.patch<{ ok: true }>(`/api/split-requests/${id}/status`, { status }),
 
   linkBankTx: (id: string, bankTxId: string | null) =>

@@ -9,17 +9,19 @@ import { ReceiptPreviewModal } from "./ReceiptPreviewModal";
 import type { IncomingRequest, OutgoingRequest } from "@/api/splitRequests";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Ausstehend",
-  accepted: "Angenommen",
-  rejected: "Abgelehnt",
-  cancelled: "Zurückgezogen",
+  pending:   "Ausstehend",
+  accepted:  "Angenommen",
+  rejected:  "Abgelehnt",
+  cancelled: "Storniert",
+  settled:   "Ausgeglichen",
 };
 
 const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "default",
-  accepted: "secondary",
-  rejected: "destructive",
+  pending:   "default",
+  accepted:  "secondary",
+  rejected:  "destructive",
   cancelled: "outline",
+  settled:   "secondary",
 };
 
 type IncomingCardProps = { request: IncomingRequest };
@@ -79,14 +81,16 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPreviewOpen(true)}
-              className="w-full sm:w-auto h-9 text-xs font-medium"
-            >
-              Beleg ansehen
-            </Button>
+            {request.receiptId && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPreviewOpen(true)}
+                className="w-full sm:w-auto h-9 text-xs font-medium"
+              >
+                Beleg ansehen
+              </Button>
+            )}
             {request.status === "pending" && (
               <div className="flex gap-2 flex-1 w-full sm:w-auto">
                 <Button

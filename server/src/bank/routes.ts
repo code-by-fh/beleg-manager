@@ -59,23 +59,21 @@ export function buildBankRouter(deps: BankDeps): Router {
   // Matches pending split_requests against positive bank transactions by amount + date window.
   // Returns the number of new links created.
   function autoMatchSplitsForUser(userId: string): number {
-    // Join with bank_transactions to get the betrag of each linked tx.
     // Only treat a split as already-settled when it is linked to a POSITIVE tx
     // (incoming reimbursement). Links to negative txs are origin links created
     // when a split is produced from an outgoing transaction — those splits must
     // still be candidates for settlement matching.
-    const existingLinks = deps.db
+    const positiveLinks = deps.db
       .prepare(`
-        SELECT sbl.split_id, sbl.bank_tx_id, bt.betrag
+        SELECT sbl.split_id, sbl.bank_tx_id
         FROM split_bank_links sbl
         JOIN bank_transactions bt ON bt.id = sbl.bank_tx_id AND bt.user_id = sbl.user_id
-        WHERE sbl.user_id = ?
+        WHERE sbl.user_id = ? AND bt.betrag > 0
       `)
-      .all(userId) as Array<{ split_id: string; bank_tx_id: string; betrag: number }>;
+      .all(userId) as Array<{ split_id: string; bank_tx_id: string }>;
 
-    // A positive-linked tx is a settlement — mark both tx and split as used.
-    const usedTxIds = new Set(existingLinks.filter((l) => l.betrag > 0).map((l) => l.bank_tx_id));
-    const settledSplitIds = new Set(existingLinks.filter((l) => l.betrag > 0).map((l) => l.split_id));
+    const usedTxIds = new Set(positiveLinks.map((l) => l.bank_tx_id));
+    const settledSplitIds = new Set(positiveLinks.map((l) => l.split_id));
 
     const unlinkedSplits = deps.db
       .prepare(
@@ -110,7 +108,7 @@ export function buildBankRouter(deps: BankDeps): Router {
         if (Math.round(tx.betrag * 100) !== splitCents) return false;
         const txDays = Math.floor(new Date(tx.buchungsdatum).getTime() / 86_400_000);
         const diff = txDays - splitDays;
-        return diff >= 0 && diff <= 60;
+        return diff >= -30 && diff <= 60;
       });
 
       if (matchingTx) {
@@ -119,6 +117,11 @@ export function buildBankRouter(deps: BankDeps): Router {
           deps.db
             .prepare("UPDATE split_requests SET status = 'accepted', updated_at = ? WHERE id = ?")
             .run(now, split.id);
+          deps.db
+            .prepare(
+              "UPDATE bank_transactions SET match_status = 'matched', match_confidence = 'high' WHERE id = ? AND user_id = ?"
+            )
+            .run(matchingTx.id, userId);
         })();
         usedTxIds.add(matchingTx.id);
         matched++;
@@ -347,7 +350,16 @@ export function buildBankRouter(deps: BankDeps): Router {
   router.delete("/transactions/:id", (req, res, next) => {
     try {
       const userId = req.session.userId!;
-      txRepo.deleteById(req.params.id, userId);
+      deps.db.transaction(() => {
+        deps.db
+          .prepare(
+            `UPDATE split_requests SET status = 'pending', updated_at = ?
+             WHERE id IN (SELECT split_id FROM split_bank_links WHERE bank_tx_id = ? AND user_id = ?)
+               AND status = 'accepted'`
+          )
+          .run(Date.now(), req.params.id, userId);
+        txRepo.deleteById(req.params.id, userId);
+      })();
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof NotFoundError) {
@@ -371,7 +383,19 @@ export function buildBankRouter(deps: BankDeps): Router {
       if (from > to) {
         return res.status(400).json({ error: "'from' must be <= 'to'" });
       }
-      const deleted = txRepo.deleteByRange(userId, from, to);
+      const deleted = deps.db.transaction(() => {
+        deps.db
+          .prepare(
+            `UPDATE split_requests SET status = 'pending', updated_at = ?
+             WHERE id IN (
+               SELECT sbl.split_id FROM split_bank_links sbl
+               JOIN bank_transactions bt ON bt.id = sbl.bank_tx_id
+               WHERE sbl.user_id = ? AND bt.buchungsdatum >= ? AND bt.buchungsdatum <= ?
+             ) AND status = 'accepted'`
+          )
+          .run(Date.now(), userId, from, to);
+        return txRepo.deleteByRange(userId, from, to);
+      })();
       res.json({ ok: true, deleted });
     } catch (err) {
       next(err);

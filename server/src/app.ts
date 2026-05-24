@@ -112,6 +112,7 @@ export function createApp(deps: AppDeps): Express {
     db: deps.db,
     shareLinkRepo,
     splitRequestRepo,
+    userRepo,
     shareReceiptsWithEmail,
     sendShareLinkEmail,
     clientOrigin: deps.config.clientOrigin,
