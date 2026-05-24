@@ -1,5 +1,7 @@
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReceiptTable } from "@/components/receipts/ReceiptTable";
 import { FailedReceiptsSection } from "@/components/receipts/FailedReceiptsSection";
+import { DriveArchiveTab } from "@/components/drive/DriveArchiveTab";
 
 export function ReceiptsPage() {
   return (
@@ -11,8 +13,19 @@ export function ReceiptsPage() {
         </p>
       </div>
 
-      <FailedReceiptsSection />
-      <ReceiptTable />
+      <Tabs defaultValue="liste">
+        <TabsList>
+          <TabsTrigger value="liste">Liste</TabsTrigger>
+          <TabsTrigger value="drive">Google Drive Archiv</TabsTrigger>
+        </TabsList>
+        <TabsContent value="liste" className="space-y-8 mt-4">
+          <FailedReceiptsSection />
+          <ReceiptTable />
+        </TabsContent>
+        <TabsContent value="drive" className="mt-4">
+          <DriveArchiveTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

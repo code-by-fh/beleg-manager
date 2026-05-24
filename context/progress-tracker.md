@@ -13,6 +13,7 @@ change.
 
 ## Completed
 
+- Implemented Google Drive Archiv tab on Receipts page: collapsible YYYY/MM folder tree in sidebar, file list with on-demand loading per month, side-panel preview (desktop) and modal preview (mobile).
 - Implemented robust error tracking and premium visual error descriptions for failed Google Drive inbox receipts.
   - **Clean Error Formatting:** Created a `cleanErrorMessage` utility in `server/src/gemini/errors.ts` to clean up complex Gemini/Google API failures (such as the `429 Too Many Requests` quota exceeded message or network timeouts) into elegant, short, user-friendly German summaries that fit perfectly within Google Drive's private `appProperties` constraints.
   - **Propagating Failures:** Updated `generateAndParse` in `server/src/gemini/extract.ts` to throw errors instead of swallowing them and returning a silent empty extraction, ensuring callers can properly react to API failures.
