@@ -3,16 +3,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link2, ArrowLeftRight, Trash2 } from "lucide-react";
+import { Link2, ArrowLeftRight, Trash2, Share2 } from "lucide-react";
 import { useOutgoingRequests, useUpdateRequestStatus, useDeleteRequest } from "@/hooks/useSplitRequests";
 import { useToast } from "@/components/ui/use-toast";
 import { bankApi } from "@/api/bank";
 import { SplitBankTxDialog } from "@/components/bank/SplitBankTxDialog";
+import { ShareLinkDialog } from "@/components/split-requests/ShareLinkDialog";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import type { OutgoingRequest, SplitRequestStatus } from "@/api/splitRequests";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   pending:   { label: "Ausstehend",    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  unterwegs: { label: "Unterwegs",     cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   accepted:  { label: "Angenommen",   cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
   rejected:  { label: "Abgelehnt",    cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   cancelled: { label: "Zurückgezogen", cls: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" },
@@ -38,6 +40,7 @@ export function MyAufteilungenList() {
   const deleteRequest = useDeleteRequest();
   const updateStatus = useUpdateRequestStatus();
   const [linkSplit, setLinkSplit] = useState<OutgoingRequest | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ name: string; email?: string } | null>(null);
 
   const txMap = useMemo(() => {
     const m = new Map<string, { haendler: string; buchungsdatum: string; betrag: number }>();
@@ -55,6 +58,21 @@ export function MyAufteilungenList() {
       map.set(key, list);
     }
     for (const list of map.values()) list.sort((a, b) => a.createdAt - b.createdAt);
+    return [...map.values()];
+  }, [data]);
+
+  const persons = useMemo(() => {
+    const map = new Map<string, { name: string; email?: string }>();
+    for (const r of data?.requests ?? []) {
+      const key = r.toUser?.email ?? r.freeName ?? "";
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, {
+          name: r.toUser?.name ?? r.freeName ?? "",
+          email: r.toUser?.email,
+        });
+      }
+    }
     return [...map.values()];
   }, [data]);
 
@@ -93,6 +111,27 @@ export function MyAufteilungenList() {
 
   return (
     <>
+      {persons.length > 0 && (
+        <div className="mb-4 p-3 rounded-xl border border-border bg-muted/10">
+          <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Anforderungen teilen</p>
+          <div className="flex flex-col gap-1.5">
+            {persons.map((p) => (
+              <div key={p.email ?? p.name} className="flex items-center justify-between gap-2">
+                <span className="text-sm">{p.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShareTarget(p)}
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  Link teilen
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-4">
         {groups.map((items) => {
           const first = items[0]!;
@@ -157,6 +196,7 @@ export function MyAufteilungenList() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="pending">Ausstehend</SelectItem>
+                                <SelectItem value="unterwegs">Unterwegs</SelectItem>
                                 <SelectItem value="accepted">Ausgeglichen</SelectItem>
                                 <SelectItem value="cancelled">Storniert</SelectItem>
                               </SelectContent>
@@ -210,6 +250,12 @@ export function MyAufteilungenList() {
         })}
       </div>
 
+      <ShareLinkDialog
+        open={shareTarget !== null}
+        personName={shareTarget?.name ?? ""}
+        prefillEmail={shareTarget?.email}
+        onClose={() => setShareTarget(null)}
+      />
       <SplitBankTxDialog
         split={linkSplit}
         onClose={() => setLinkSplit(null)}
