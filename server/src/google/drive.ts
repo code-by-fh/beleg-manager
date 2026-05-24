@@ -99,3 +99,16 @@ export async function downloadFile(drive: DriveClient, fileId: string): Promise<
   );
   return Buffer.from(res.data as ArrayBuffer);
 }
+
+export async function listSubfolders(
+  drive: DriveClient,
+  folderId: string
+): Promise<Array<{ id: string; name: string }>> {
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'`,
+    fields: "files(id,name)",
+    pageSize: 50,
+    orderBy: "name",
+  });
+  return (res.data.files ?? []).map((f) => ({ id: f.id!, name: f.name! }));
+}
