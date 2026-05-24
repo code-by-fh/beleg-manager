@@ -13,7 +13,9 @@ change.
 
 ## Completed
 
-- Share-Links für Anforderungen: öffentliche /share/:token-Seite, Drive-Freigabe per E-Mail, Gmail-Versand über Owner-Account, 20-Tage-Ablauf, timing-safe Token-Lookup.
+- Bereits erstellte, noch aktive Share-Links werden nun unter `/requests` direkt bei der jeweiligen Person aufgelistet. Dies beinhaltet eine Anzeige der verbleibenden Gültigkeit in Tagen (farblich hervorgehoben in Grün/Smaragd oder Bernstein) sowie einen Button zum direkten Kopieren des Links in die Zwischenablage (mit "Kopiert!"-Visualisierung und Toast-Notification) sowie eine Option zum Erneuern des Links.
+- Im Kontoabgleich (/kontoabgleich) für die Reiter "Abgeglichen" und "Ignoriert" einen Item-Counter hinzugefügt, der analog zum Reiter "Nicht zugeordnet" die Anzahl der jeweiligen Einträge farblich passend anzeigt (grün für abgeglichen, grau für ignoriert).
+- Share-Links für Anforderungen: öffentliche /share/:token-Seite, Drive-Freigabe per E-Mail, Gmail-Versand über Owner-Account, 20-Tage-Ablauf, timing-safe Token-Lookup. Empfänger kann Beleg inline einsehen (via token-authentifiziertem Proxy-Endpoint) und Anforderungsstatus direkt auf der Share-Seite auf "accepted"/"rejected" setzen.
 - Implemented Google Drive Archiv tab on Receipts page: collapsible YYYY/MM folder tree in sidebar, file list with on-demand loading per month, side-panel preview (desktop) and modal preview (mobile).
 - Implemented robust error tracking and premium visual error descriptions for failed Google Drive inbox receipts.
   - **Clean Error Formatting:** Created a `cleanErrorMessage` utility in `server/src/gemini/errors.ts` to clean up complex Gemini/Google API failures (such as the `429 Too Many Requests` quota exceeded message or network timeouts) into elegant, short, user-friendly German summaries that fit perfectly within Google Drive's private `appProperties` constraints.

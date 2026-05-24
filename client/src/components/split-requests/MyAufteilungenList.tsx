@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link2, ArrowLeftRight, Trash2, Share2 } from "lucide-react";
+import { Link2, ArrowLeftRight, Trash2, Share2, Copy, Check } from "lucide-react";
 import { useOutgoingRequests, useUpdateRequestStatus, useDeleteRequest } from "@/hooks/useSplitRequests";
+import { useShareLinksList } from "@/hooks/useShareLinks";
 import { useToast } from "@/components/ui/use-toast";
 import { bankApi } from "@/api/bank";
 import { SplitBankTxDialog } from "@/components/bank/SplitBankTxDialog";
@@ -13,12 +14,11 @@ import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import type { OutgoingRequest, SplitRequestStatus } from "@/api/splitRequests";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  pending:   { label: "Ausstehend",    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  unterwegs: { label: "Unterwegs",     cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  accepted:  { label: "Angenommen",   cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  rejected:  { label: "Abgelehnt",    cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-  cancelled: { label: "Zurückgezogen", cls: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" },
-  settled:   { label: "Ausgeglichen", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  pending:   { label: "Ausstehend",   cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  accepted:  { label: "Angenommen",  cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  rejected:  { label: "Abgelehnt",   cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  cancelled: { label: "Storniert",   cls: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" },
+  settled:   { label: "Ausgeglichen", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
 };
 
 function getStatusKey(
@@ -35,12 +35,26 @@ function getStatusKey(
 export function MyAufteilungenList() {
   const { data, isLoading } = useOutgoingRequests();
   const { data: bankData } = useQuery({ queryKey: ["bank-transactions"], queryFn: () => bankApi.listTransactions() });
+  const { data: shareLinksData } = useShareLinksList();
   const qc = useQueryClient();
   const { toast } = useToast();
   const deleteRequest = useDeleteRequest();
   const updateStatus = useUpdateRequestStatus();
   const [linkSplit, setLinkSplit] = useState<OutgoingRequest | null>(null);
   const [shareTarget, setShareTarget] = useState<{ name: string; email?: string } | null>(null);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+
+  async function handleCopy(linkId: string, token: string) {
+    const url = `${window.location.origin}/share/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLinkId(linkId);
+      toast({ title: "Link kopiert", description: "Der Freigabe-Link wurde in die Zwischenablage kopiert." });
+      setTimeout(() => setCopiedLinkId(null), 2000);
+    } catch {
+      toast({ title: "Fehler beim Kopieren", variant: "destructive" });
+    }
+  }
 
   const txMap = useMemo(() => {
     const m = new Map<string, { haendler: string; buchungsdatum: string; betrag: number }>();
@@ -115,20 +129,70 @@ export function MyAufteilungenList() {
         <div className="mb-4 p-3 rounded-xl border border-border bg-muted/10">
           <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Anforderungen teilen</p>
           <div className="flex flex-col gap-1.5">
-            {persons.map((p) => (
-              <div key={p.email ?? p.name} className="flex items-center justify-between gap-2">
-                <span className="text-sm">{p.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShareTarget(p)}
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  Link teilen
-                </Button>
-              </div>
-            ))}
+            {persons.map((p) => {
+              const now = Date.now();
+              const activeLink = shareLinksData?.links?.find((l) => {
+                if (l.expiresAt <= now) return false;
+                if (p.email) return l.personEmail.toLowerCase() === p.email.toLowerCase();
+                return l.personName.toLowerCase() === p.name.toLowerCase();
+              });
+
+              const daysRemaining = activeLink
+                ? Math.ceil((activeLink.expiresAt - now) / (1000 * 60 * 60 * 24))
+                : 0;
+
+              return (
+                <div key={p.email ?? p.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">{p.name}</span>
+                    {p.email && (
+                      <span className="text-xs text-muted-foreground">({p.email})</span>
+                    )}
+                    {activeLink && (
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${
+                        daysRemaining <= 3
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      }`}>
+                        Aktiv (noch {daysRemaining} {daysRemaining === 1 ? "Tag" : "Tage"})
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    {activeLink && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                        onClick={() => handleCopy(activeLink.id, activeLink.token)}
+                      >
+                        {copiedLinkId === activeLink.id ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            Kopiert!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            Link kopieren
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShareTarget(p)}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      {activeLink ? "Erneuern" : "Link teilen"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -196,9 +260,10 @@ export function MyAufteilungenList() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="pending">Ausstehend</SelectItem>
-                                <SelectItem value="unterwegs">Unterwegs</SelectItem>
-                                <SelectItem value="accepted">Ausgeglichen</SelectItem>
+                                <SelectItem value="accepted">Angenommen</SelectItem>
+                                <SelectItem value="rejected">Abgelehnt</SelectItem>
                                 <SelectItem value="cancelled">Storniert</SelectItem>
+                                <SelectItem value="settled">Ausgeglichen</SelectItem>
                               </SelectContent>
                             </Select>
                           )}

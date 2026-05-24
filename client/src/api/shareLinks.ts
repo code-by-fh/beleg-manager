@@ -5,16 +5,18 @@ export type ShareLinkInfo = {
   personName: string;
   personEmail: string;
   expiresAt: number;
+  token: string;
 };
 
 export type PublicSplitRequestItem = {
+  id: string;
   haendler: string;
   datum: string;
   betrag: number;
   waehrung: string;
   nachricht: string;
   status: string;
-  driveFileUrl: string | null;
+  hasReceipt: boolean;
 };
 
 export type PublicShareData = {
@@ -33,4 +35,10 @@ export const shareLinksApi = {
 
   getPublic: (token: string) =>
     api.get<PublicShareData>(`/api/share-links/${token}`),
+
+  updateStatus: (token: string, requestId: string, status: "accepted" | "rejected") =>
+    api.patch<{ ok: true }>(`/api/share-links/${token}/requests/${requestId}/status`, { status }),
+
+  receiptPreviewUrl: (token: string, requestId: string) =>
+    `/api/share-links/${token}/requests/${requestId}/preview`,
 };

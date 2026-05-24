@@ -5,7 +5,10 @@ import type { Config } from "../config.js";
 import type { Db } from "../db/index.js";
 import type { ShareLinkRepo } from "./repo.js";
 import type { SplitRequestRepo } from "../split-requests/repo.js";
+import type { UserRepo } from "../auth/userRepo.js";
 import { CreateShareLinkBody, TokenParams, IdParams } from "./schema.js";
+import { driveFor } from "../google/drive.js";
+import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { logger } from "../logger.js";
 
 const log = logger.child({ module: "share-links" });
@@ -25,6 +28,7 @@ export type ShareLinksRouterDeps = {
   db: Db;
   shareLinkRepo: ShareLinkRepo;
   splitRequestRepo: SplitRequestRepo;
+  userRepo: UserRepo;
   shareReceiptsWithEmail: (cfg: Config["google"], refreshToken: string, receiptIds: string[], email: string) => Promise<void>;
   sendShareLinkEmail: (cfg: Config["google"], refreshToken: string, opts: {
     ownerEmail: string; ownerName: string; personName: string; personEmail: string;
@@ -34,8 +38,37 @@ export type ShareLinksRouterDeps = {
 };
 
 export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
-  const { config, db, shareLinkRepo, splitRequestRepo } = deps;
+  const { config, db, shareLinkRepo, splitRequestRepo, userRepo } = deps;
   const router = Router();
+
+  const publicActionLimit = rateLimit({
+    windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false,
+    keyGenerator: (req) => req.ip as string,
+  });
+
+  function resolveToken(token: string) {
+    const link = shareLinkRepo.getByToken(token);
+    if (!link) return null;
+    if (link.expiresAt <= Date.now()) return null;
+    return link;
+  }
+
+  function getFilteredRequests(link: ReturnType<typeof shareLinkRepo.getByToken> & object) {
+    const allRequests = splitRequestRepo.listOutgoing(link.fromUserId);
+    const userEmailMap = new Map<string, string>();
+    const toUserIds = allRequests.map((r) => r.toUserId).filter((id): id is string => id !== null);
+    if (toUserIds.length > 0) {
+      const placeholders = toUserIds.map(() => "?").join(",");
+      (db.prepare(`SELECT id, email FROM users WHERE id IN (${placeholders})`).all(...toUserIds) as Array<{ id: string; email: string }>)
+        .forEach((u) => userEmailMap.set(u.id, u.email));
+    }
+    return allRequests.filter((r) => {
+      if (r.status === "settled" || r.status === "cancelled") return false;
+      if (r.freeName) return r.freeName.toLowerCase() === link.personName.toLowerCase();
+      if (r.toUserId) return userEmailMap.get(r.toUserId) === link.personEmail;
+      return false;
+    });
+  }
 
   // Public endpoint — no auth
   router.get("/:token", publicReadLimit, (req, res, next) => {
@@ -47,42 +80,79 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
       if (!link) return res.status(404).json({ error: "not found" });
       if (link.expiresAt <= Date.now()) return res.status(410).json({ error: "link expired" });
 
-      const allRequests = splitRequestRepo.listOutgoing(link.fromUserId);
-
-      // Build email map for registered users so we can match by email
-      const userEmailMap = new Map<string, string>();
-      const toUserIds = allRequests
-        .map((r) => r.toUserId)
-        .filter((id): id is string => id !== null);
-      if (toUserIds.length > 0) {
-        const placeholders = toUserIds.map(() => "?").join(",");
-        (db.prepare(`SELECT id, email FROM users WHERE id IN (${placeholders})`).all(...toUserIds) as Array<{ id: string; email: string }>)
-          .forEach((u) => userEmailMap.set(u.id, u.email));
-      }
-
-      const filtered = allRequests.filter((r) => {
-        if (r.freeName) {
-          return r.freeName.toLowerCase() === link.personName.toLowerCase();
-        }
-        if (r.toUserId) {
-          return userEmailMap.get(r.toUserId) === link.personEmail;
-        }
-        return false;
-      });
+      const filtered = getFilteredRequests(link);
 
       const requests = filtered.map((r) => ({
+        id: r.id,
         haendler: r.receiptMeta.haendler,
         datum: r.receiptMeta.datum,
         betrag: r.betrag,
         waehrung: r.receiptMeta.waehrung,
         nachricht: r.nachricht,
         status: r.status,
-        driveFileUrl: r.receiptId
-          ? `https://drive.google.com/file/d/${r.receiptId}/view`
-          : null,
+        hasReceipt: !!r.receiptId,
       }));
 
       res.json({ personName: link.personName, requests, expiresAt: link.expiresAt });
+    } catch (err) { next(err); }
+  });
+
+  // Public receipt preview via share token
+  router.get("/:token/requests/:requestId/preview", publicActionLimit, async (req, res, next) => {
+    try {
+      const parsed = TokenParams.safeParse(req.params);
+      if (!parsed.success) return res.status(400).json({ error: "invalid token" });
+
+      const link = resolveToken(parsed.data.token);
+      if (!link) return res.status(410).json({ error: "link expired or not found" });
+
+      const filtered = getFilteredRequests(link);
+      const splitReq = filtered.find((r) => r.id === req.params.requestId);
+      if (!splitReq) return res.status(404).json({ error: "not found" });
+      if (!splitReq.receiptId) return res.status(404).json({ error: "no receipt attached" });
+
+      const owner = userRepo.getById(link.fromUserId);
+      if (!owner?.refreshToken) return res.status(503).json({ error: "source user unavailable" });
+
+      const auth = buildOAuth2ClientForRefreshToken(config.google, owner.refreshToken);
+      const drive = driveFor(auth);
+      const meta = await drive.files.get({ fileId: splitReq.receiptId, fields: "mimeType" });
+      const mimeType = meta.data.mimeType ?? "application/octet-stream";
+      const fileRes = await drive.files.get(
+        { fileId: splitReq.receiptId, alt: "media" },
+        { responseType: "stream" }
+      );
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      (fileRes.data as NodeJS.ReadableStream).pipe(res);
+    } catch (err) {
+      log.error({ err }, "share preview error");
+      next(err);
+    }
+  });
+
+  // Public status update via share token (accepted / rejected only)
+  router.patch("/:token/requests/:requestId/status", publicActionLimit, (req, res, next) => {
+    try {
+      const parsed = TokenParams.safeParse(req.params);
+      if (!parsed.success) return res.status(400).json({ error: "invalid token" });
+
+      const link = resolveToken(parsed.data.token);
+      if (!link) return res.status(410).json({ error: "link expired or not found" });
+
+      const { status } = req.body as { status?: string };
+      if (status !== "accepted" && status !== "rejected") {
+        return res.status(400).json({ error: "status must be accepted or rejected" });
+      }
+
+      const filtered = getFilteredRequests(link);
+      const splitReq = filtered.find((r) => r.id === req.params.requestId);
+      if (!splitReq) return res.status(404).json({ error: "not found" });
+      if (splitReq.status !== "pending") return res.status(409).json({ error: "request already resolved" });
+
+      splitRequestRepo.updateStatus(req.params.requestId!, status);
+      res.json({ ok: true });
     } catch (err) { next(err); }
   });
 
@@ -136,7 +206,7 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
   router.get("/", (req, res, next) => {
     try {
       const links = shareLinkRepo.listByOwner(req.session.userId!);
-      res.json({ links: links.map((l) => ({ id: l.id, personName: l.personName, personEmail: l.personEmail, expiresAt: l.expiresAt })) });
+      res.json({ links: links.map((l) => ({ id: l.id, personName: l.personName, personEmail: l.personEmail, expiresAt: l.expiresAt, token: l.token })) });
     } catch (err) { next(err); }
   });
 

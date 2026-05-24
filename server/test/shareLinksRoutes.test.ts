@@ -76,7 +76,7 @@ describe("share-links routes", () => {
     expect(res.body.personName).toBe("Bob");
     expect(res.body.requests).toHaveLength(1);
     expect(res.body.requests[0]).not.toHaveProperty("fromUserId");
-    expect(res.body.requests[0]).not.toHaveProperty("id");
+    expect(res.body.requests[0]).toHaveProperty("id");
     expect(res.body.requests[0].haendler).toBe("Aldi");
   });
 
