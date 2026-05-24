@@ -89,8 +89,6 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
   addColumnIfMissing(db, "users", "start_page", "TEXT NOT NULL DEFAULT '/'");
   addColumnIfMissing(db, "receipts", "positions", "TEXT");
-  addColumnIfMissing(db, "split_requests", "positions", "TEXT");
-  addColumnIfMissing(db, "split_requests", "adjusted_by_recipient", "INTEGER DEFAULT 0");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS split_requests (
@@ -111,6 +109,8 @@ export function runMigrations(db: Db): void {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status)`);
+  addColumnIfMissing(db, "split_requests", "positions", "TEXT");
+  addColumnIfMissing(db, "split_requests", "adjusted_by_recipient", "INTEGER DEFAULT 0");
 
   // Extend split_requests: nullable to_user_id, free_name, receipt_sqlite_id, nullable receipt_id
   // Guard: only run if free_name column is absent
