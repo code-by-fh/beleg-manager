@@ -115,7 +115,7 @@ export function buildBankRouter(deps: BankDeps): Router {
         deps.db.transaction(() => {
           insertLink.run(split.id, userId, matchingTx.id, now);
           deps.db
-            .prepare("UPDATE split_requests SET status = 'accepted', updated_at = ? WHERE id = ?")
+            .prepare("UPDATE split_requests SET status = 'settled', updated_at = ? WHERE id = ?")
             .run(now, split.id);
           deps.db
             .prepare(
@@ -353,9 +353,11 @@ export function buildBankRouter(deps: BankDeps): Router {
       deps.db.transaction(() => {
         deps.db
           .prepare(
-            `UPDATE split_requests SET status = 'pending', updated_at = ?
+            `UPDATE split_requests 
+             SET status = CASE WHEN to_user_id IS NOT NULL THEN 'accepted' ELSE 'pending' END, 
+                 updated_at = ?
              WHERE id IN (SELECT split_id FROM split_bank_links WHERE bank_tx_id = ? AND user_id = ?)
-               AND status = 'accepted'`
+               AND status = 'settled'`
           )
           .run(Date.now(), req.params.id, userId);
         txRepo.deleteById(req.params.id, userId);
@@ -386,12 +388,14 @@ export function buildBankRouter(deps: BankDeps): Router {
       const deleted = deps.db.transaction(() => {
         deps.db
           .prepare(
-            `UPDATE split_requests SET status = 'pending', updated_at = ?
+            `UPDATE split_requests 
+             SET status = CASE WHEN to_user_id IS NOT NULL THEN 'accepted' ELSE 'pending' END, 
+                 updated_at = ?
              WHERE id IN (
                SELECT sbl.split_id FROM split_bank_links sbl
                JOIN bank_transactions bt ON bt.id = sbl.bank_tx_id
                WHERE sbl.user_id = ? AND bt.buchungsdatum >= ? AND bt.buchungsdatum <= ?
-             ) AND status = 'accepted'`
+             ) AND status = 'settled'`
           )
           .run(Date.now(), userId, from, to);
         return txRepo.deleteByRange(userId, from, to);

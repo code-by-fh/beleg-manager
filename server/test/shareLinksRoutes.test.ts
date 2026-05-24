@@ -80,6 +80,39 @@ describe("share-links routes", () => {
     expect(res.body.requests[0].haendler).toBe("Aldi");
   });
 
+  it("GET /api/share-links/:token excludes settled and cancelled split requests", async () => {
+    const { app, db, shareLinkRepo } = makeApp();
+    const link = shareLinkRepo.create({
+      fromUserId: "u1",
+      personName: "Bob",
+      personEmail: "bob@example.com",
+    });
+
+    // insert a settled split request
+    db.prepare(
+      `INSERT INTO split_requests
+        (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
+         receipt_meta, betrag, nachricht, status, created_at, updated_at)
+       VALUES ('sr_settled', 'u1', NULL, 'Bob', NULL, NULL,
+               '{"haendler":"Lidl","datum":"2024-01-11","gesamtbetrag":30,"waehrung":"EUR"}',
+               15, 'Settled Msg', 'settled', ${Date.now()}, ${Date.now()})`
+    ).run();
+
+    // insert a cancelled split request
+    db.prepare(
+      `INSERT INTO split_requests
+        (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
+         receipt_meta, betrag, nachricht, status, created_at, updated_at)
+       VALUES ('sr_cancelled', 'u1', NULL, 'Bob', NULL, NULL,
+               '{"haendler":"Rewe","datum":"2024-01-12","gesamtbetrag":40,"waehrung":"EUR"}',
+               20, 'Cancelled Msg', 'cancelled', ${Date.now()}, ${Date.now()})`
+    ).run();
+
+    const res = await request(app).get(`/api/share-links/${link.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.requests).toHaveLength(0);
+  });
+
   it("GET /api/share-links/:token returns 410 for expired token", async () => {
     const { app, db } = makeApp();
     const { v4: uuidv4 } = await import("uuid");

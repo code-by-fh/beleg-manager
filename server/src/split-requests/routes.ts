@@ -243,9 +243,10 @@ export function buildSplitRequestsRouter(
           .prepare("SELECT bank_tx_id FROM split_bank_links WHERE split_id = ? AND user_id = ?")
           .get(splitId, userId) as { bank_tx_id: string } | undefined;
         db.prepare("DELETE FROM split_bank_links WHERE split_id = ? AND user_id = ?").run(splitId, userId);
+        const newStatus = splitReq.toUserId ? "accepted" : "pending";
         db.prepare(
-          "UPDATE split_requests SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'accepted'"
-        ).run(Date.now(), splitId);
+          "UPDATE split_requests SET status = ?, updated_at = ? WHERE id = ? AND status = 'settled'"
+        ).run(newStatus, Date.now(), splitId);
         if (existingLink) {
           db.prepare(
             "UPDATE bank_transactions SET match_status = 'unmatched', match_confidence = NULL WHERE id = ? AND user_id = ? AND matched_receipt_id IS NULL"
@@ -263,6 +264,9 @@ export function buildSplitRequestsRouter(
         db.prepare(
           "UPDATE bank_transactions SET match_status = 'matched', match_confidence = 'manual' WHERE id = ? AND user_id = ?"
         ).run(bankTxId, userId);
+        db.prepare(
+          "UPDATE split_requests SET status = 'settled', updated_at = ? WHERE id = ?"
+        ).run(Date.now(), splitId);
       }
       res.json({ ok: true });
     } catch (err) { next(err); }
