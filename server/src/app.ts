@@ -28,6 +28,9 @@ import { buildBankRouter } from "./bank/routes.js";
 import { createSplitRequestRepo } from "./split-requests/repo.js";
 import { buildSplitRequestsRouter } from "./split-requests/routes.js";
 import { buildUsersRouter } from "./users/searchRoutes.js";
+import { createShareLinkRepo } from "./share-links/repo.js";
+import { buildShareLinksRouter } from "./share-links/routes.js";
+import { shareReceiptsWithEmail, sendShareLinkEmail } from "./share-links/service.js";
 import type { HealthRepo } from "./monitoring/repo.js";
 import { buildMonitoringRouter } from "./monitoring/routes.js";
 
@@ -43,6 +46,7 @@ export type AppDeps = {
 export function createApp(deps: AppDeps): Express {
   const userRepo = createUserRepo(deps.db);
   const splitRequestRepo = createSplitRequestRepo(deps.db);
+  const shareLinkRepo = createShareLinkRepo(deps.db);
   const failedVoiceRepo = createFailedVoiceRepo(deps.db);
   const receiptRepo = createReceiptRepo(deps.db);
   configurePassport(deps.config, userRepo);
@@ -103,6 +107,15 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api/bank", buildBankRouter({ db: deps.db }));
   app.use("/api/split-requests", buildSplitRequestsRouter(deps.config, userRepo, splitRequestRepo, deps.db));
   app.use("/api/users", buildUsersRouter(deps.db));
+  app.use("/api/share-links", buildShareLinksRouter({
+    config: deps.config,
+    db: deps.db,
+    shareLinkRepo,
+    splitRequestRepo,
+    shareReceiptsWithEmail,
+    sendShareLinkEmail,
+    clientOrigin: deps.config.clientOrigin,
+  }));
   app.use("/api/telegram", buildTelegramRouter({
     config: deps.config,
     userRepo,
