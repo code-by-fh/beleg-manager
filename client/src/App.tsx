@@ -9,6 +9,7 @@ import { ReceiptsPage } from "@/pages/Receipts";
 import { KontoabgleichPage } from "@/pages/Kontoabgleich";
 import { RequestsPage } from "@/pages/Requests";
 import { MonitoringPage } from "@/pages/Monitoring";
+import { SharePage } from "@/pages/SharePage";
 import { AppShell } from "@/components/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RootRedirect } from "@/components/RootRedirect";
@@ -25,6 +26,7 @@ export function App() {
       <QueryClientProvider client={qc}>
         <BrowserRouter>
           <Routes>
+            <Route path="/share/:token" element={<SharePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
               <Route path="/" element={<RootRedirect />} />
