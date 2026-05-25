@@ -14,19 +14,24 @@ RUN npm run build
 # Stage 2: Production
 FROM node:20-alpine
 
+RUN apk add --no-cache su-exec
+
 WORKDIR /app
 
 # Copy node_modules from builder so native modules (better-sqlite3) don't need recompilation
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
-RUN mkdir -p /app/data && chown -R node:node /app/data
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    mkdir -p /app/data
 
-USER node
+VOLUME /app/data
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]
