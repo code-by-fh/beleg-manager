@@ -118,27 +118,31 @@ export function runMigrations(db: Db): void {
   if (!srCols.some((c) => c.name === "free_name")) {
     db.exec(`
       CREATE TABLE split_requests_new (
-        id                TEXT PRIMARY KEY,
-        from_user_id      TEXT NOT NULL,
-        to_user_id        TEXT,
-        free_name         TEXT,
-        receipt_id        TEXT,
-        receipt_sqlite_id TEXT,
-        receipt_meta      TEXT NOT NULL,
-        betrag            REAL NOT NULL,
-        nachricht         TEXT NOT NULL DEFAULT '',
-        status            TEXT NOT NULL DEFAULT 'pending'
-                            CHECK (status IN ('pending','accepted','rejected','cancelled','settled')),
-        created_at        INTEGER NOT NULL,
-        updated_at        INTEGER NOT NULL,
+        id                    TEXT PRIMARY KEY,
+        from_user_id          TEXT NOT NULL,
+        to_user_id            TEXT,
+        free_name             TEXT,
+        receipt_id            TEXT,
+        receipt_sqlite_id     TEXT,
+        receipt_meta          TEXT NOT NULL,
+        betrag                REAL NOT NULL,
+        nachricht             TEXT NOT NULL DEFAULT '',
+        status                TEXT NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending','accepted','rejected','cancelled','settled')),
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        positions             TEXT,
+        adjusted_by_recipient INTEGER DEFAULT 0,
         FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
       );
       INSERT INTO split_requests_new
         (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
-         receipt_meta, betrag, nachricht, status, created_at, updated_at)
+         receipt_meta, betrag, nachricht, status, created_at, updated_at,
+         positions, adjusted_by_recipient)
       SELECT id, from_user_id, to_user_id, NULL, receipt_id, NULL,
-             receipt_meta, betrag, nachricht, status, created_at, updated_at
+             receipt_meta, betrag, nachricht, status, created_at, updated_at,
+             positions, adjusted_by_recipient
       FROM split_requests;
       DROP TABLE split_requests;
       ALTER TABLE split_requests_new RENAME TO split_requests;
@@ -152,27 +156,31 @@ export function runMigrations(db: Db): void {
   if (srSql && !srSql.sql.includes("'settled'")) {
     db.exec(`
       CREATE TABLE split_requests_new (
-        id                TEXT PRIMARY KEY,
-        from_user_id      TEXT NOT NULL,
-        to_user_id        TEXT,
-        free_name         TEXT,
-        receipt_id        TEXT,
-        receipt_sqlite_id TEXT,
-        receipt_meta      TEXT NOT NULL,
-        betrag            REAL NOT NULL,
-        nachricht         TEXT NOT NULL DEFAULT '',
-        status            TEXT NOT NULL DEFAULT 'pending'
-                            CHECK (status IN ('pending','accepted','rejected','cancelled','settled')),
-        created_at        INTEGER NOT NULL,
-        updated_at        INTEGER NOT NULL,
+        id                    TEXT PRIMARY KEY,
+        from_user_id          TEXT NOT NULL,
+        to_user_id            TEXT,
+        free_name             TEXT,
+        receipt_id            TEXT,
+        receipt_sqlite_id     TEXT,
+        receipt_meta          TEXT NOT NULL,
+        betrag                REAL NOT NULL,
+        nachricht             TEXT NOT NULL DEFAULT '',
+        status                TEXT NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending','accepted','rejected','cancelled','settled')),
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        positions             TEXT,
+        adjusted_by_recipient INTEGER DEFAULT 0,
         FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
       );
       INSERT INTO split_requests_new
         (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
-         receipt_meta, betrag, nachricht, status, created_at, updated_at)
+         receipt_meta, betrag, nachricht, status, created_at, updated_at,
+         positions, adjusted_by_recipient)
       SELECT id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
-             receipt_meta, betrag, nachricht, status, created_at, updated_at
+             receipt_meta, betrag, nachricht, status, created_at, updated_at,
+             positions, adjusted_by_recipient
       FROM split_requests;
       DROP TABLE split_requests;
       ALTER TABLE split_requests_new RENAME TO split_requests;
@@ -180,6 +188,10 @@ export function runMigrations(db: Db): void {
       CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status);
     `);
   }
+
+  // Safety net: ensure these columns exist regardless of which recreations ran above
+  addColumnIfMissing(db, "split_requests", "positions", "TEXT");
+  addColumnIfMissing(db, "split_requests", "adjusted_by_recipient", "INTEGER DEFAULT 0");
 
   // failed_uploads: for direct-upload receipts where Gemini failed
   db.exec(`
