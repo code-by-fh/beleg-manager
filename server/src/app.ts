@@ -71,7 +71,7 @@ export function createApp(deps: AppDeps): Express {
     },
   }));
   app.use(cors({ origin: deps.config.clientOrigin, credentials: true }));
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use(
