@@ -277,10 +277,16 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     }
   }
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="w-full">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
-    <>
+    <div className="w-full">
       <div className="space-y-6">
         {!hideFilters && (
           <ReceiptFilters filters={filters} setFilters={setFilters} categories={categories} />
@@ -588,6 +594,6 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
         }}
       />
-    </>
+    </div>
   );
 }

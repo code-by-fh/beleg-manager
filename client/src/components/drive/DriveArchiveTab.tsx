@@ -87,9 +87,11 @@ export function DriveArchiveTab() {
 
   useEffect(() => {
     if (treeQuery.data?.years.length && !selectedFolderId) {
-      const firstYear = treeQuery.data.years[0];
-      if (firstYear?.months?.length) {
-        setSelectedFolderId(firstYear.months[0]!.id);
+      const years = treeQuery.data.years;
+      const lastYear = years[years.length - 1];
+      if (lastYear?.months?.length) {
+        const months = lastYear.months;
+        setSelectedFolderId(months[months.length - 1]!.id);
       }
     }
   }, [treeQuery.data, selectedFolderId]);

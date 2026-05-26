@@ -216,7 +216,7 @@ export function FailedReceiptsSection() {
   }
 
   return (
-    <>
+    <div className="w-full">
       <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20 p-4 space-y-3">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -401,6 +401,6 @@ export function FailedReceiptsSection() {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
