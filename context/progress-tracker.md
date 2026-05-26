@@ -73,6 +73,17 @@ change.
 
 - None.
 
+## Recently Completed (this session)
+
+- **Positionen beim ersten Verarbeiten**: Gemini-Fallback im `/:id/positions`-Endpoint entfernt. Positionen werden ausschließlich aus dem SQLite-Cache zurückgegeben. Für neue Belege ist dies nahtlos, da Positionen bereits beim Upload extrahiert werden.
+- **Foto-Upload ohne Zwischenschritt**: Wenn ein Foto ausgewählt wird, startet ein 5-Sekunden-Countdown. Das Foto wird automatisch in die Drive-Inbox gelegt. Der Nutzer kann während des Countdowns abbrechen. Das optionale Kontext-Eingabefeld und der "Erfassen"-Button entfallen komplett.
+- **Mobile: Datum-Feld öffnet Kalender nicht automatisch**: In `ReceiptForm.tsx` wurde das Händler-Feld vor das Datum-Feld gestellt. Dadurch erhält das Text-Feld beim Öffnen den ersten Fokus, nicht das Datum-Feld.
+- **Kategorien erweitert + eigene Kategorien**: Standard-Kategorien auf 26 Alltags-Kategorien erweitert. Neue `custom_categories`-Spalte in der DB (Migration). Settings-API GET/POST `/api/settings/categories`. Settings-UI-Karte mit Tag-Management. `ReceiptForm` lädt eigene Kategorien dynamisch. Gemini `SYSTEM_PROMPT` als Funktion — empfängt vollständige Kategorien-Liste (Standard + eigene) bei jeder Extraktion (Upload, Voice, Poller).
+- **Drive Archive: neuesten Beleg zuerst**: `DriveArchiveTab.tsx` wählt jetzt das letzte Jahr und den letzten Monat beim Öffnen aus (statt dem ersten).
+- **Benennungsschema yymmdd_haendler_topic**: Neue Hilfsfunktion `buildReceiptFileName()` in `archive.ts`. Dateien werden nach dem Schema `yymmdd_haendler_kategorie.ext` benannt (z.B. `260526_rewe_supermarkt.jpg`). Umlaute werden korrekt umgewandelt (ä→ae, ö→oe, usw.). Gilt für direkte Uploads (confirm), Drive-Inbox-Importe (import+confirm) und manuelle Bestätigungen (confirm-manual). `renameFile()`-Funktion in `drive.ts` hinzugefügt; `archiveExistingFile()` in `archive.ts` akzeptiert optionalen neuen Namen.
+- **Behebung des Radix UI TabsContent 'removeChild' Fehlers**: Behebung eines kritischen React 18 / StrictMode Fehlers (`Failed to execute 'removeChild' on 'Node'`), der beim Laden der Belege-Seite `/receipts` auftreten konnte, wenn Lade- und Fehlerzustände parallel in Radix UI Tabs gerendert wurden. Durch das Ersetzen von React Fragment-Wurzeln (`<>...</>`) in `ReceiptTable.tsx` und `FailedReceiptsSection.tsx` mit stabilen block-level Containern (`<div className="w-full">`) wurde die DOM-Reconciliation für den React-Reconciler stabilisiert.
+- **Mobile-Anpassung und Modernisierung der Beleg-Filter**: Die Eingabefelder und das Kategorie-Dropdown auf der Belege-Seite (`/receipts`) wurden für mobile Ansichten optimiert. Sie nehmen auf Mobilgeräten die volle Breite ein (`w-full`) und stapeln sich sauber vertikal. Zudem wurden die nativen Datumsfelder ("Von" und "Bis") durch eine vollständig modernisierte Variante ersetzt: Sie besitzen ein elegantes `Calendar`-Icon auf der linken Seite, einen echten, benutzerdefinierten Placeholder ("Von" / "Bis") im leeren Zustand, und einen interaktiven `X` (Clear) Button zum schnellen Zurücksetzen des Filters. Um browserabhängige Darstellungsfehler (wie das Überlappen der nativen Maske `dd.mm.yyyy` im Chrome/Edge mit dem benutzerdefinierten Placeholder) zu korrigieren, wurde das native Datumsfeld im leeren, unfokussierten Zustand unsichtbar geschaltet (`text-transparent`) und erst bei Fokus oder ausgefülltem Wert eingeblendet (`focus:text-foreground`). Das native Picker-Overlay wird weiterhin vollflächig aufgerufen.
+
 ## Next Up
 
 - (open)
