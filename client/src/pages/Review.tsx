@@ -200,13 +200,13 @@ export function ReviewPage() {
                 <div className="relative aspect-[1/1.4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/10">
                   {mimeType.startsWith("image/") ? (
                     <img
-                      src={`/api/receipts/pending/${pendingId}/preview`}
+                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
                       alt="Beleg Vorschau"
                       className="max-h-full max-w-full object-contain select-none transition-transform duration-300 hover:scale-[1.02]"
                     />
                   ) : mimeType === "application/pdf" ? (
                     <iframe
-                      src={`/api/receipts/pending/${pendingId}/preview`}
+                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
                       className="w-full h-full rounded-[20px] border-0"
                       title="PDF Vorschau"
                     />
@@ -219,7 +219,7 @@ export function ReviewPage() {
                 </div>
                 <div className="p-3 text-center">
                   <a
-                    href={`/api/receipts/pending/${pendingId}/preview`}
+                    href={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs font-semibold text-primary/80 hover:text-primary transition-colors underline underline-offset-4 decoration-primary/20 hover:decoration-primary"
