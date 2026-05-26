@@ -88,6 +88,7 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
   addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
   addColumnIfMissing(db, "users", "start_page", "TEXT NOT NULL DEFAULT '/'");
+  addColumnIfMissing(db, "users", "custom_categories", "TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing(db, "receipts", "positions", "TEXT");
 
   db.exec(`

@@ -19,6 +19,10 @@ const UISettingsBody = z.object({
   startPage: z.string().startsWith("/"),
 });
 
+const CategoriesBody = z.object({
+  categories: z.array(z.string().min(1).max(50)).max(30),
+});
+
 export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
   const router = Router();
   router.use(requireAuth);
@@ -80,6 +84,19 @@ export function buildSettingsRouter(userRepo: UserRepo, config?: Config) {
     const parsed = UISettingsBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid body" });
     userRepo.setUISettings(req.session.userId!, parsed.data);
+    res.json({ ok: true });
+  });
+
+  router.get("/categories", (req, res) => {
+    const user = userRepo.getById(req.session.userId!);
+    const cats: string[] = JSON.parse(user?.customCategories || "[]");
+    res.json({ categories: cats });
+  });
+
+  router.post("/categories", (req, res) => {
+    const parsed = CategoriesBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid body" });
+    userRepo.setCustomCategories(req.session.userId!, parsed.data.categories);
     res.json({ ok: true });
   });
 

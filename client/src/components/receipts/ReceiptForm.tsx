@@ -1,13 +1,25 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReceiptFormZ, type ReceiptFormValues } from "@/lib/validators";
+import { settingsApi } from "@/api/settings";
 
-const KATEGORIEN = ["Restaurant", "Tankstelle", "Büromaterial", "Reise", "Unterkunft", "Software", "Sonstiges"];
+export const DEFAULT_KATEGORIEN = [
+  "Restaurant", "Café", "Supermarkt", "Bäckerei", "Drogerie",
+  "Tankstelle", "Parkgebühr", "ÖPNV", "Taxi/Uber",
+  "Büromaterial", "Software", "Hardware", "Telefon/Internet",
+  "Reise", "Unterkunft", "Flug", "Mietwagen",
+  "Kleidung", "Apotheke", "Arzt/Gesundheit",
+  "Freizeit", "Sport", "Haushalt",
+  "Versicherung", "Steuerberatung",
+  "Sonstiges",
+];
+
 const ZAHLUNGSMETHODEN = ["(Kredit-)Karte", "Bar", "Sonstiges"];
 const WAEHRUNGEN = ["EUR", "USD", "CHF", "GBP"];
 
@@ -41,6 +53,17 @@ export function ReceiptForm({
     },
   });
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ["custom-categories"],
+    queryFn: () => settingsApi.getCategories(),
+    staleTime: 300_000,
+  });
+
+  const allKategorien = [
+    ...DEFAULT_KATEGORIEN,
+    ...(categoriesData?.categories ?? []).filter((c) => !DEFAULT_KATEGORIEN.includes(c)),
+  ];
+
   const watchedValues = watch(["haendler", "betrag", "datum"]);
 
   useEffect(() => {
@@ -56,11 +79,11 @@ export function ReceiptForm({
 
   return (
     <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)}>
-      <Field label="Datum" error={errors.datum?.message}>
-        <Input type="date" {...register("datum")} />
-      </Field>
       <Field label="Händler" error={errors.haendler?.message}>
         <Input {...register("haendler")} />
+      </Field>
+      <Field label="Datum" error={errors.datum?.message}>
+        <Input type="date" {...register("datum")} />
       </Field>
       <Field label="Betrag (brutto)" error={errors.betrag?.message}>
         <Input type="number" step="0.01" {...register("betrag")} />
@@ -80,7 +103,7 @@ export function ReceiptForm({
       <Field label="Kategorie" error={errors.kategorie?.message}>
         <Select value={watch("kategorie")} onValueChange={(v) => setValue("kategorie", v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>{KATEGORIEN.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
+          <SelectContent>{allKategorien.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
         </Select>
       </Field>
       <Field label="Zahlungsmethode" error={errors.zahlungsmethode?.message}>

@@ -15,6 +15,7 @@ export type UserRow = {
   telegramBotToken: string | null;
   receiptsViewMode: "table" | "list" | null;
   startPage: string;
+  customCategories: string;
 };
 
 type UpsertInput = { id: string; email: string; name: string; refreshToken: string | null };
@@ -53,7 +54,8 @@ export function createUserRepo(db: Db) {
             gmail_label_filter AS gmailLabelFilter,
             telegram_bot_token AS telegramBotToken,
             receipts_view_mode AS receiptsViewMode,
-            start_page AS startPage
+            start_page AS startPage,
+            COALESCE(custom_categories, '[]') AS customCategories
            FROM users WHERE id = ?`
         )
         .get(id) as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number }) | undefined;
@@ -86,7 +88,8 @@ export function createUserRepo(db: Db) {
             gmail_label_filter AS gmailLabelFilter,
             telegram_bot_token AS telegramBotToken,
             receipts_view_mode AS receiptsViewMode,
-            start_page AS startPage
+            start_page AS startPage,
+            COALESCE(custom_categories, '[]') AS customCategories
            FROM users WHERE refresh_token IS NOT NULL`
         )
         .all() as (Omit<UserRow, "gmailPollingEnabled"> & { gmailPollingEnabled: number })[];
@@ -109,6 +112,10 @@ export function createUserRepo(db: Db) {
       if (settings.startPage) {
         db.prepare("UPDATE users SET start_page = @page WHERE id = @id").run({ id, page: settings.startPage });
       }
+    },
+
+    setCustomCategories(id: string, categories: string[]): void {
+      db.prepare("UPDATE users SET custom_categories = @cats WHERE id = @id").run({ id, cats: JSON.stringify(categories) });
     },
 
     clearDriveFolderIds(id: string): void {
