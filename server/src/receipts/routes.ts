@@ -255,6 +255,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
           res.setHeader("Content-Type", source.mimeType);
           res.setHeader("Cache-Control", "no-store");
           res.setHeader("X-Content-Type-Options", "nosniff");
+          res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
           res.end(source.buffer);
           return;
         }
@@ -271,6 +272,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         res.setHeader("Content-Length", buffer.length);
         res.setHeader("Cache-Control", "no-store");
         res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
         res.end(buffer);
         return;
       }
