@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { ArchiveFile } from "@/types/receipt";
 
 function PreviewContent({ file, zoomable = false }: { file: ArchiveFile; zoomable?: boolean }) {
-  const previewUrl = `/api/drive/archive/${file.id}/preview`;
+  const previewUrl = `${import.meta.env.VITE_API_URL ?? ""}/api/drive/archive/${file.id}/preview`;
   const isImage = file.mimeType.startsWith("image/");
   return (
     <div className="flex flex-col h-full">

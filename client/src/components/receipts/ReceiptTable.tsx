@@ -301,7 +301,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           )}
           <div className="flex items-center gap-2">
             <a
-              href="/api/receipts/export/csv"
+              href={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/export/csv`}
               download="belege.csv"
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
               title="CSV exportieren"

@@ -111,13 +111,13 @@ function ManualEntryDialog({
                 <div className="relative aspect-[1/1.4] w-full overflow-hidden rounded-[18px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/10">
                   {file.mimeType.startsWith("image/") ? (
                     <img
-                      src={`/api/drive/inbox/${file.id}/preview`}
+                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${file.id}/preview`}
                       alt="Beleg Vorschau"
                       className="max-h-full max-w-full object-contain select-none transition-transform duration-300 hover:scale-[1.02]"
                     />
                   ) : file.mimeType === "application/pdf" ? (
                     <iframe
-                      src={`/api/drive/inbox/${file.id}/preview`}
+                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${file.id}/preview`}
                       className="w-full h-full rounded-[14px] border-0 animate-in fade-in"
                       title="PDF Vorschau"
                     />
@@ -130,7 +130,7 @@ function ManualEntryDialog({
                 </div>
                 <div className="p-2 text-center">
                   <a
-                    href={`/api/drive/inbox/${file.id}/preview`}
+                    href={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${file.id}/preview`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs font-semibold text-primary/80 hover:text-primary transition-colors underline underline-offset-4 decoration-primary/20 hover:decoration-primary"
@@ -370,13 +370,13 @@ export function FailedReceiptsSection() {
               <div className="flex-1 min-h-0 w-full rounded-2xl overflow-hidden bg-black/5 dark:bg-white/5 border border-border/10 flex items-center justify-center relative aspect-[1/1.4] max-h-[60vh]">
                 {previewFile.mimeType.startsWith("image/") ? (
                   <img
-                    src={`/api/drive/inbox/${previewFile.id}/preview`}
+                    src={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${previewFile.id}/preview`}
                     alt="Beleg Vorschau"
                     className="max-h-full max-w-full object-contain select-none animate-in fade-in zoom-in-95 duration-200"
                   />
                 ) : previewFile.mimeType === "application/pdf" ? (
                   <iframe
-                    src={`/api/drive/inbox/${previewFile.id}/preview`}
+                    src={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${previewFile.id}/preview`}
                     className="w-full h-full border-0 animate-in fade-in zoom-in-95 duration-200"
                     title="PDF Vorschau"
                   />
@@ -389,7 +389,7 @@ export function FailedReceiptsSection() {
               </div>
               <div className="text-center pb-1">
                 <a
-                  href={`/api/drive/inbox/${previewFile.id}/preview`}
+                  href={`${import.meta.env.VITE_API_URL ?? ""}/api/drive/inbox/${previewFile.id}/preview`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs font-semibold text-primary/80 hover:text-primary transition-colors underline underline-offset-4 decoration-primary/20 hover:decoration-primary"
