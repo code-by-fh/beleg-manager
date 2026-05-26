@@ -8,7 +8,7 @@ import type { HealthRepo } from "../monitoring/repo.js";
 import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, listFolderFiles, downloadFile, setAppProperties } from "../google/drive.js";
-import { archiveExistingFile } from "../receipts/archive.js";
+import { archiveExistingFile, buildReceiptFileName } from "../receipts/archive.js";
 import { SUPPORTED_MIME_TYPES, SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
 
@@ -71,12 +71,20 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
       const files = await listFolderFiles(drive, user.driveInboxFolderId);
+      const newFiles = files.filter((f) => !f.appProperties?.bm_status);
+      if (newFiles.length > 0) {
+        log.info({ userId: user.id, count: newFiles.length }, "found unprocessed inbox files");
+      }
       for (const file of files) {
         if (file.appProperties?.bm_status) continue;
-        if (!SUPPORTED_MIME_TYPES.has(file.mimeType)) continue;
+        if (!SUPPORTED_MIME_TYPES.has(file.mimeType)) {
+          log.debug({ fileId: file.id, mimeType: file.mimeType, userId: user.id }, "skipping unsupported mime type");
+          continue;
+        }
         try {
           const buffer = await downloadFile(drive, file.id);
-          const extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });
+          const customCats: string[] = JSON.parse(user.customCategories || "[]");
+          const extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer }, undefined, customCats);
 
           const datum = extraction.datum ?? new Date().toISOString().slice(0, 10);
           const haendler = extraction.haendler ?? "Unbekannt";
@@ -84,13 +92,19 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
 
           const isDuplicate = deps.receiptRepo.checkDuplicate(user.id, datum, haendler, betrag);
           if (isDuplicate) {
+            log.info({ fileId: file.id, userId: user.id, datum, haendler, betrag }, "duplicate detected, skipping");
             throw new Error("Duplikat erkannt: Beleg existiert bereits");
           }
 
+          const kategorie = extraction.kategorie ?? "Sonstiges";
           let driveLink = "";
           if (user.driveArchiveFolderId) {
             try {
-              const r = await archiveExistingFile(drive, file.id, user.driveArchiveFolderId, datum);
+              const ext = file.mimeType === "application/pdf" ? "pdf" : file.mimeType.split("/")[1] ?? "bin";
+              const r = await archiveExistingFile(
+                drive, file.id, user.driveArchiveFolderId, datum,
+                buildReceiptFileName(datum, haendler, kategorie, ext)
+              );
               driveLink = r.driveLink;
             } catch (archErr) {
               log.warn({ err: archErr, fileId: file.id }, "archive failed, continuing without link");
@@ -105,16 +119,17 @@ export async function runOnce(deps: PollerDeps): Promise<{ processed: number; fa
             mwst: extraction.mwst ?? 0,
             trinkgeld: extraction.trinkgeld ?? 0,
             waehrung: extraction.waehrung ?? "EUR",
-            kategorie: extraction.kategorie ?? "Sonstiges",
+            kategorie,
             zahlungsmethode: extraction.zahlungsmethode ?? "Unbekannt",
             rechnungsnummer: extraction.rechnungsnummer ?? "",
             driveLink,
             eingabeTyp: SOURCE_KIND_TO_EINGABE_TYP["drive"],
             erstelltAm: new Date().toISOString(),
+            positions: extraction.positions ?? null,
           });
 
           await setAppProperties(drive, file.id, { bm_status: "confirmed" }).catch(() => undefined);
-          log.debug({ fileId: file.id, userId: user.id }, "file processed");
+          log.info({ fileId: file.id, userId: user.id, haendler, betrag, datum }, "receipt extracted and archived");
           processed++;
         } catch (err) {
           log.error({ err, fileId: file.id, userId: user.id }, "file processing failed");

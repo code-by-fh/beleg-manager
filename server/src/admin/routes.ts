@@ -3,6 +3,9 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import type { Config } from "../config.js";
 import type { UserRepo } from "../auth/userRepo.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
+import { logger } from "../logger.js";
+
+const log = logger.child({ module: "admin" });
 import {
   resetLocalData,
   resetGoogleDrive,
@@ -64,7 +67,7 @@ export function buildAdminRouter(
           if (!localResult.success) {
             allSuccess = false;
           }
-          console.log(`[factory-reset] userId=${userId} localData=${localResult.success}`);
+          log.info({ userId, success: localResult.success }, "factory-reset localData");
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           results.localData = {
@@ -72,7 +75,7 @@ export function buildAdminRouter(
             message,
           };
           allSuccess = false;
-          console.error(`[factory-reset] userId=${userId} localData failed: ${message}`);
+          log.error({ userId, err }, "factory-reset localData failed");
         }
       }
 
@@ -99,7 +102,7 @@ export function buildAdminRouter(
             if (!driveResult.success) {
               allSuccess = false;
             }
-            console.log(`[factory-reset] userId=${userId} googleDrive=${driveResult.success}`);
+            log.info({ userId, success: driveResult.success }, "factory-reset googleDrive");
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -108,7 +111,7 @@ export function buildAdminRouter(
             message,
           };
           allSuccess = false;
-          console.error(`[factory-reset] userId=${userId} googleDrive failed: ${message}`);
+          log.error({ userId, err }, "factory-reset googleDrive failed");
         }
       }
 

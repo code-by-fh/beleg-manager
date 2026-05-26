@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Upload, Send, X, Loader2, Type, FileText, Eye, Trash2 } from "lucide-react";
 import { receiptsApi } from "@/api/receipts";
@@ -12,13 +12,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import type { DriveInboxFile } from "@/types/receipt";
 
-type InputMode = "idle" | "photo" | "text";
+type InputMode = "idle" | "countdown" | "text";
+
+const COUNTDOWN_SECONDS = 5;
 
 export function UnifiedInput() {
   const [mode, setMode] = useState<InputMode>("idle");
   const [file, setFile] = useState<File | null>(null);
   const [textInput, setTextInput] = useState("");
-  const [context, setContext] = useState("");
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -27,10 +29,7 @@ export function UnifiedInput() {
   const [discardFileId, setDiscardFileId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      return;
-    }
+    if (!file) { setPreviewUrl(null); return; }
     if (file.type.startsWith("image/")) {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -38,6 +37,18 @@ export function UnifiedInput() {
     }
     setPreviewUrl(null);
   }, [file]);
+
+  // Countdown timer: counts down and auto-uploads when reaching 0
+  useEffect(() => {
+    if (mode !== "countdown") return;
+    if (countdown <= 0) {
+      uploadFile();
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, countdown]);
 
   const { data: inboxData, isLoading: inboxLoading, isError: inboxError, error: inboxErrorInfo, refetch: refetchInbox } = useDriveInbox();
   const qc = useQueryClient();
@@ -50,35 +61,49 @@ export function UnifiedInput() {
     setMode("idle");
     setFile(null);
     setTextInput("");
-    setContext("");
+    setCountdown(COUNTDOWN_SECONDS);
     setShowPreview(false);
   }
 
   function handleFileSelect(files: FileList | null) {
     const f = files?.[0];
-    if (f) { setMode("photo"); setFile(f); }
+    if (!f) return;
+    setFile(f);
+    setCountdown(COUNTDOWN_SECONDS);
+    setMode("countdown");
+    // Reset the input so the same file can be re-selected if cancelled
+    if (inputRef.current) inputRef.current.value = "";
   }
 
-  async function submit() {
+  const uploadFile = useCallback(async () => {
+    if (!file) return;
+    setBusy(true);
+    setMode("idle");
+    try {
+      await receiptsApi.upload(file);
+      toast({ title: "Beleg wird verarbeitet", description: "Er erscheint in Kürze unter Belege." });
+      qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
+    } catch (e) {
+      toast({ title: "Fehler", description: String((e as Error).message) });
+    } finally {
+      setBusy(false);
+      setFile(null);
+    }
+  }, [file, qc, toast]);
+
+  async function submitText() {
+    if (!textInput.trim()) { toast({ title: "Bitte zuerst Text eingeben." }); return; }
     setBusy(true);
     try {
-      if (mode === "photo" && file) {
-        await receiptsApi.upload(file, context || undefined);
-        toast({ title: "Beleg wird verarbeitet", description: "Er erscheint in Kürze unter Belege." });
-        qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
-        reset();
-      } else if (mode === "text") {
-        if (!textInput.trim()) { toast({ title: "Bitte zuerst Text eingeben." }); setBusy(false); return; }
-        const res = await receiptsApi.voice(textInput.trim());
-        if (res.ok) {
-          toast({ title: "Beleg gespeichert" });
-          qc.invalidateQueries({ queryKey: ["receipts"] });
-        } else {
-          toast({ title: "Verarbeitung fehlgeschlagen", description: "Beleg erscheint unter Belege zur Nachbearbeitung." });
-          qc.invalidateQueries({ queryKey: ["failedVoiceJobs"] });
-        }
-        reset();
+      const res = await receiptsApi.voice(textInput.trim());
+      if (res.ok) {
+        toast({ title: "Beleg gespeichert" });
+        qc.invalidateQueries({ queryKey: ["receipts"] });
+      } else {
+        toast({ title: "Verarbeitung fehlgeschlagen", description: "Beleg erscheint unter Belege zur Nachbearbeitung." });
+        qc.invalidateQueries({ queryKey: ["failedVoiceJobs"] });
       }
+      reset();
     } catch (e) {
       toast({ title: "Fehler", description: String((e as Error).message) });
     } finally {
@@ -99,9 +124,10 @@ export function UnifiedInput() {
     }
   }
 
-  const canSubmit =
-    (mode === "photo" && !!file) ||
-    (mode === "text" && !!textInput.trim());
+  // Progress arc for the countdown circle (SVG)
+  const radius = 22;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (countdown / COUNTDOWN_SECONDS) * circumference;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -116,7 +142,7 @@ export function UnifiedInput() {
       {mode !== "idle" && (
         <div className="flex-shrink-0 border-b border-border/30 bg-white/40 dark:bg-white/5 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
           <span className="text-foreground font-medium text-sm">
-            {mode === "photo" && "Foto hochladen"}
+            {mode === "countdown" && "Foto wird hochgeladen…"}
             {mode === "text" && "Text eingeben"}
           </span>
           <button
@@ -141,10 +167,11 @@ export function UnifiedInput() {
             <div className="w-full max-w-xs space-y-3">
               <button
                 onClick={() => inputRef.current?.click()}
-                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30"
+                disabled={busy}
+                className="w-full bg-[var(--surface)] border border-[hsl(var(--border))] rounded-xl p-4 flex items-center gap-4 transition-all duration-300 hover:border-[hsl(var(--foreground))]/30 disabled:opacity-50"
               >
                 <div className="w-11 h-11 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
-                  <Upload className="h-5 w-5 text-background" />
+                  {busy ? <Loader2 className="h-5 w-5 text-background animate-spin" /> : <Upload className="h-5 w-5 text-background" />}
                 </div>
                 <div className="text-left">
                   <p className="text-foreground font-medium text-sm">Foto hochladen</p>
@@ -264,63 +291,82 @@ export function UnifiedInput() {
           </div>
         )}
 
-        {/* PHOTO */}
-        {mode === "photo" && file && (
-          <div className="p-6 flex flex-col items-center gap-6">
-            <div className="clay-card-static rounded-[32px] p-5 w-full max-w-sm text-center space-y-2">
-              {previewUrl ? (
-                <>
-                  <button
-                    onClick={() => setShowPreview((v) => !v)}
-                    className="sm:hidden text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 mx-auto"
-                  >
-                    <Eye className="h-3 w-3" />
-                    {showPreview ? "Vorschau ausblenden" : "Vorschau anzeigen"}
-                  </button>
-                  <div className={cn(
-                    "relative aspect-[3/4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/20 mx-auto",
-                    showPreview ? "block" : "hidden sm:block"
-                  )}>
-                    <img
-                      src={previewUrl}
-                      alt="Vorschau"
-                      className="max-h-full max-w-full object-contain rounded-[20px] select-none"
+        {/* COUNTDOWN — auto-upload with undo */}
+        {mode === "countdown" && file && (
+          <div className="min-h-full flex flex-col items-center justify-center px-6 py-12 gap-6">
+            <div className="clay-card-static rounded-[32px] p-6 w-full max-w-sm text-center space-y-4">
+              {/* Countdown ring + preview */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <svg width="60" height="60" className="-rotate-90">
+                    <circle
+                      cx="30" cy="30" r={radius}
+                      fill="none"
+                      stroke="hsl(var(--border))"
+                      strokeWidth="3"
                     />
-                  </div>
-                </>
-              ) : file.type === "application/pdf" ? (
-                <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center mx-auto">
-                  <FileText className="h-6 w-6 text-background" />
+                    <circle
+                      cx="30" cy="30" r={radius}
+                      fill="none"
+                      stroke="hsl(var(--foreground))"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={circumference - progress}
+                      style={{ transition: "stroke-dashoffset 0.9s linear" }}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-foreground">
+                    {countdown}
+                  </span>
                 </div>
-              ) : (
-                <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center mx-auto">
-                  <Upload className="h-6 w-6 text-background" />
-                </div>
-              )}
-              <p className="text-foreground font-medium text-sm break-all">{file.name}</p>
-              <p className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-            </div>
 
-            <div className="w-full max-w-xs space-y-3">
-              <input
-                placeholder="Optionaler Kontext…"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                disabled={busy}
-                maxLength={200}
-                className="clay-input w-full px-4 py-2.5 text-sm"
-              />
-              <button
-                onClick={submit}
-                disabled={!canSubmit || busy}
-                className={cn(
-                  "w-full h-14 rounded-[20px] flex items-center justify-center gap-2 font-bold transition-all duration-300",
-                  canSubmit && !busy
-                    ? "rounded-lg bg-foreground text-background"
-                    : "bg-black/5 dark:bg-white/5 text-muted-foreground cursor-not-allowed"
+                {previewUrl ? (
+                  <>
+                    <button
+                      onClick={() => setShowPreview((v) => !v)}
+                      className="sm:hidden text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 mx-auto"
+                    >
+                      <Eye className="h-3 w-3" />
+                      {showPreview ? "Vorschau ausblenden" : "Vorschau anzeigen"}
+                    </button>
+                    <div className={cn(
+                      "relative aspect-[3/4] w-full max-w-[200px] overflow-hidden rounded-[20px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/20 mx-auto",
+                      showPreview ? "block" : "hidden sm:block"
+                    )}>
+                      <img
+                        src={previewUrl}
+                        alt="Vorschau"
+                        className="max-h-full max-w-full object-contain rounded-[16px] select-none"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center mx-auto">
+                    {file.type === "application/pdf" ? (
+                      <FileText className="h-6 w-6 text-background" />
+                    ) : (
+                      <Upload className="h-6 w-6 text-background" />
+                    )}
+                  </div>
                 )}
+
+                <div>
+                  <p className="text-foreground font-medium text-sm break-all">{file.name}</p>
+                  <p className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                </div>
+              </div>
+
+              <p className="text-muted-foreground text-xs">
+                Wird in {countdown} Sekunde{countdown !== 1 ? "n" : ""} in die Inbox gelegt…
+              </p>
+
+              <button
+                onClick={reset}
+                className="w-full h-11 rounded-[16px] border border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground hover:border-border transition-all duration-200 text-sm font-medium flex items-center justify-center gap-2"
               >
-                {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Wird hochgeladen…</> : <><Send className="h-4 w-4" /> Erfassen</>}
+                <X className="h-4 w-4" />
+                Abbrechen
               </button>
             </div>
           </div>
@@ -341,11 +387,11 @@ export function UnifiedInput() {
                 className="clay-input w-full px-4 py-3 text-sm resize-none leading-relaxed"
               />
               <button
-                onClick={submit}
-                disabled={!canSubmit || busy}
+                onClick={submitText}
+                disabled={!textInput.trim() || busy}
                 className={cn(
                   "w-full h-14 rounded-[20px] flex items-center justify-center gap-2 font-bold transition-all duration-300",
-                  canSubmit && !busy
+                  textInput.trim() && !busy
                     ? "rounded-lg bg-foreground text-background"
                     : "bg-black/5 dark:bg-white/5 text-muted-foreground cursor-not-allowed"
                 )}

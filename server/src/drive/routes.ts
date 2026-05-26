@@ -9,8 +9,11 @@ import type { ReceiptRepo } from "../receipts/receiptRepo.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
+import { logger } from "../logger.js";
+
+const log = logger.child({ module: "drive-routes" });
 import { driveFor, listFolderFiles, downloadFile, setAppProperties, listSubfolders } from "../google/drive.js";
-import { archiveExistingFile } from "../receipts/archive.js";
+import { archiveExistingFile, buildReceiptFileName } from "../receipts/archive.js";
 import { SOURCE_KIND_TO_EINGABE_TYP } from "../receipts/types.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
 
@@ -55,7 +58,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         }));
       res.json({ files: enriched });
     } catch (err) {
-      console.error("[drive] inbox fetch failed:", err);
+      log.error({ err }, "inbox fetch failed");
       if ((err as any).code === 401 || (err as any).code === 403) {
         return res.status((err as any).code).json({ error: "Google Drive Zugriff verweigert. Bitte erneut anmelden." });
       }
@@ -73,14 +76,12 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       const drive = driveFor(auth);
       const meta = await drive.files.get({ fileId: req.params.fileId, fields: "mimeType" });
       const mimeType = meta.data.mimeType ?? "application/octet-stream";
-      const fileRes = await drive.files.get(
-        { fileId: req.params.fileId, alt: "media" },
-        { responseType: "stream" }
-      );
+      const buffer = await downloadFile(drive, req.params.fileId);
       res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Length", buffer.length);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("X-Content-Type-Options", "nosniff");
-      (fileRes.data as NodeJS.ReadableStream).pipe(res);
+      res.end(buffer);
     } catch (err) {
       next(err);
     }
@@ -119,7 +120,8 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       let extraction;
       try {
         const buffer = await downloadFile(drive, file.id);
-        extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer });
+        const customCats: string[] = JSON.parse(user.customCategories || "[]");
+        extraction = await deps.gemini.extractFromPhoto({ mimeType: file.mimeType, buffer }, undefined, customCats);
       } catch (err) {
         await setAppProperties(drive, file.id, {
           bm_status: "failed",
@@ -138,6 +140,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
         bm_extracted_json: JSON.stringify(extraction),
         bm_error: "",
       }).catch(() => undefined);
+      log.info({ fileId: file.id, fileName: file.name, pendingId, userId }, "file imported from inbox");
       res.json({ pendingId, extraction, fileName: file.name, mimeType: file.mimeType });
     } catch (err) {
       next(err);
@@ -176,11 +179,15 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
 
+      const fileMeta = await drive.files.get({ fileId: req.params.fileId, fields: "mimeType" });
+      const mimeType = fileMeta.data.mimeType ?? "application/octet-stream";
+      const ext = mimeType === "application/pdf" ? "pdf" : mimeType.split("/")[1] ?? "bin";
       const { driveLink } = await archiveExistingFile(
         drive,
         req.params.fileId,
         user.driveArchiveFolderId,
         parsed.data.datum,
+        buildReceiptFileName(parsed.data.datum, parsed.data.haendler, parsed.data.kategorie, ext),
       );
 
       const row = {
@@ -202,6 +209,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
 
       await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
 
+      log.info({ fileId: req.params.fileId, userId, haendler: row.haendler, betrag: row.betrag }, "manual confirm: receipt created and archived");
       res.json({ ok: true, row });
     } catch (err) {
       next(err);
@@ -217,6 +225,7 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
       const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
       const drive = driveFor(auth);
       await setAppProperties(drive, req.params.fileId, { bm_status: "confirmed" }).catch(() => undefined);
+      log.info({ fileId: req.params.fileId, userId }, "file skipped in inbox");
       res.json({ ok: true });
     } catch (err) {
       next(err);
@@ -293,14 +302,12 @@ export function buildDriveRouter(deps: DriveRoutesDeps) {
 
       const meta = await drive.files.get({ fileId: paramParsed.data.fileId, fields: "mimeType" });
       const mimeType = meta.data.mimeType ?? "application/octet-stream";
-      const fileRes = await drive.files.get(
-        { fileId: paramParsed.data.fileId, alt: "media" },
-        { responseType: "stream" }
-      );
+      const buffer = await downloadFile(drive, paramParsed.data.fileId);
       res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Length", buffer.length);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("X-Content-Type-Options", "nosniff");
-      (fileRes.data as NodeJS.ReadableStream).pipe(res);
+      res.end(buffer);
     } catch (err) {
       next(err);
     }

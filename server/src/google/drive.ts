@@ -1,6 +1,9 @@
 import { google, type drive_v3 } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import { Readable } from "node:stream";
+import { logger } from "../logger.js";
+
+const log = logger.child({ module: "drive" });
 
 export type DriveClient = drive_v3.Drive;
 
@@ -22,6 +25,7 @@ export async function findOrCreateFolder(
   const list = await drive.files.list({ q, fields: "files(id,name)", pageSize: 1 });
   if (list.data.files && list.data.files[0]?.id) return list.data.files[0].id;
 
+  log.info({ name, parentId }, "creating Drive folder");
   const created = await drive.files.create({
     requestBody: {
       name,
@@ -31,6 +35,7 @@ export async function findOrCreateFolder(
     fields: "id",
   });
   if (!created.data.id) throw new Error("Drive folder creation returned no id");
+  log.info({ folderId: created.data.id, name }, "Drive folder created");
   return created.data.id;
 }
 
@@ -43,24 +48,28 @@ export async function listFolderFiles(
     fields: "files(id,name,mimeType,appProperties)",
     pageSize: 100,
   });
-  return (res.data.files ?? []).map((f) => ({
+  const files = (res.data.files ?? []).map((f) => ({
     id: f.id!,
     name: f.name!,
     mimeType: f.mimeType ?? "application/octet-stream",
     appProperties: (f.appProperties as Record<string, string> | undefined) ?? undefined,
   }));
+  log.debug({ folderId, count: files.length }, "listed folder files");
+  return files;
 }
 
 export async function uploadFile(
   drive: DriveClient,
   args: { name: string; mimeType: string; parentId: string; body: Buffer }
 ): Promise<{ id: string; webViewLink: string }> {
+  log.info({ fileName: args.name, mimeType: args.mimeType, sizeBytes: args.body.length }, "uploading file to Drive");
   const created = await drive.files.create({
     requestBody: { name: args.name, parents: [args.parentId] },
     media: { mimeType: args.mimeType, body: Readable.from(args.body) },
     fields: "id, webViewLink",
   });
   if (!created.data.id) throw new Error("Drive upload returned no id");
+  log.info({ fileId: created.data.id, fileName: args.name }, "file uploaded to Drive");
   return { id: created.data.id, webViewLink: created.data.webViewLink ?? "" };
 }
 
@@ -69,6 +78,7 @@ export async function moveFile(
   fileId: string,
   targetParentId: string
 ): Promise<void> {
+  log.debug({ fileId, targetParentId }, "moving file");
   const file = await drive.files.get({ fileId, fields: "parents" });
   const previousParents = (file.data.parents ?? []).join(",");
   await drive.files.update({
@@ -87,17 +97,24 @@ export async function setAppProperties(
   await drive.files.update({ fileId, requestBody: { appProperties } });
 }
 
+export async function renameFile(drive: DriveClient, fileId: string, newName: string): Promise<void> {
+  await drive.files.update({ fileId, requestBody: { name: newName } });
+}
+
 export async function getWebViewLink(drive: DriveClient, fileId: string): Promise<string> {
   const res = await drive.files.get({ fileId, fields: "webViewLink" });
   return res.data.webViewLink ?? "";
 }
 
 export async function downloadFile(drive: DriveClient, fileId: string): Promise<Buffer> {
+  log.debug({ fileId }, "downloading file from Drive");
   const res = await drive.files.get(
     { fileId, alt: "media" },
     { responseType: "arraybuffer" }
   );
-  return Buffer.from(res.data as ArrayBuffer);
+  const buf = Buffer.from(res.data as ArrayBuffer);
+  log.debug({ fileId, sizeBytes: buf.length }, "file downloaded");
+  return buf;
 }
 
 export async function listSubfolders(

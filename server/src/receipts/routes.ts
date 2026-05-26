@@ -13,7 +13,7 @@ import { uploadSingleImage } from "../middleware/upload.js";
 import { uploadRateLimit } from "../middleware/rateLimit.js";
 import { buildOAuth2ClientForRefreshToken } from "../google/client.js";
 import { driveFor, uploadFile, setAppProperties, downloadFile } from "../google/drive.js";
-import { archiveExistingFile, archiveBuffer } from "./archive.js";
+import { archiveExistingFile, archiveBuffer, buildReceiptFileName } from "./archive.js";
 import { bootstrapUserDrive } from "../google/bootstrap.js";
 import { logger } from "../logger.js";
 import { cleanErrorMessage } from "../gemini/errors.js";
@@ -102,6 +102,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         parentId: user.driveInboxFolderId,
         body: req.file.buffer,
       });
+      log.info({ fileName, mimeType: req.file.mimetype, sizeBytes: req.file.size, userId }, "file uploaded to inbox");
       res.status(202).json({ ok: true });
     } catch (err) {
       next(err);
@@ -115,10 +116,12 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
 
       const userId = req.session.userId!;
       const transcript = parsed.data.transcript;
+      const voiceUser = deps.userRepo.getById(userId);
+      const customCatsVoice: string[] = JSON.parse(voiceUser?.customCategories || "[]");
 
       let extraction;
       try {
-        extraction = await deps.gemini.extractFromTranscript(transcript);
+        extraction = await deps.gemini.extractFromTranscript(transcript, customCatsVoice);
       } catch (geminiErr) {
         log.error({ err: geminiErr }, "gemini extractFromTranscript failed");
         const jobId = deps.failedVoice.save({
@@ -155,6 +158,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       };
       deps.receiptRepo.insert(userId, row);
 
+      log.info({ userId, haendler, betrag, datum }, "voice receipt saved");
       res.json({ ok: true });
     } catch (err) {
       next(err);
@@ -186,11 +190,10 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const drive = driveFor(auth);
 
       let driveLink = "";
-      const baseName = `${parsed.data.datum}_${parsed.data.haendler}`.replace(/[^\w.-]/g, "_");
       if (pending.source.kind === "upload") {
         const ext = pending.source.mimeType === "application/pdf" ? "pdf" : pending.source.mimeType.split("/")[1] ?? "bin";
         const r = await archiveBuffer(drive, {
-          name: `${baseName}.${ext}`,
+          name: buildReceiptFileName(parsed.data.datum, parsed.data.haendler, parsed.data.kategorie, ext),
           mimeType: pending.source.mimeType,
           buffer: pending.source.buffer,
           archiveRootId: user.driveArchiveFolderId,
@@ -198,7 +201,9 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         });
         driveLink = r.driveLink;
       } else if (pending.source.kind === "drive") {
-        const r = await archiveExistingFile(drive, pending.source.fileId, user.driveArchiveFolderId, parsed.data.datum);
+        const ext = pending.source.mimeType === "application/pdf" ? "pdf" : pending.source.mimeType.split("/")[1] ?? "bin";
+        const r = await archiveExistingFile(drive, pending.source.fileId, user.driveArchiveFolderId, parsed.data.datum,
+          buildReceiptFileName(parsed.data.datum, parsed.data.haendler, parsed.data.kategorie, ext));
         driveLink = r.driveLink;
         await setAppProperties(drive, pending.source.fileId, { bm_status: "confirmed" }).catch(() => undefined);
       }
@@ -220,6 +225,7 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         positions: pending.extraction.positions || null,
       };
       deps.receiptRepo.insert(userId, row);
+      log.info({ userId, haendler: row.haendler, betrag: row.betrag, pendingId: parsed.data.pendingId, source: pending.source.kind }, "receipt confirmed and archived");
       res.json({ ok: true, row });
     } catch (err) {
       next(err);
@@ -260,14 +266,12 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
         const drive = driveFor(auth);
         const meta = await drive.files.get({ fileId: source.fileId, fields: "mimeType" });
         const mimeType = meta.data.mimeType ?? "application/octet-stream";
-        const fileRes = await drive.files.get(
-          { fileId: source.fileId, alt: "media" },
-          { responseType: "stream" }
-        );
+        const buffer = await downloadFile(drive, source.fileId);
         res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Length", buffer.length);
         res.setHeader("Cache-Control", "no-store");
         res.setHeader("X-Content-Type-Options", "nosniff");
-        (fileRes.data as NodeJS.ReadableStream).pipe(res);
+        res.end(buffer);
         return;
       }
 
@@ -315,10 +319,12 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
       const userId = req.session.userId!;
       const job = deps.failedVoice.getById(userId, req.params.jobId);
       if (!job) return res.status(404).json({ error: "job not found" });
+      const retryUser = deps.userRepo.getById(userId);
+      const customCatsRetry: string[] = JSON.parse(retryUser?.customCategories || "[]");
 
       let extraction;
       try {
-        extraction = await deps.gemini.extractFromTranscript(job.transcript);
+        extraction = await deps.gemini.extractFromTranscript(job.transcript, customCatsRetry);
       } catch (geminiErr) {
         log.error({ err: geminiErr }, "gemini extractFromTranscript failed (retry)");
         return res.status(502).json({ error: cleanErrorMessage(geminiErr) });
@@ -391,52 +397,11 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     res.json({ rows });
   });
 
-  router.post("/:id/positions", async (req, res, next) => {
-    try {
-      const userId = req.session.userId!;
-      const receipt = deps.receiptRepo.findById(userId, req.params.id);
-      if (!receipt) return res.status(404).json({ error: "receipt not found" });
-
-      // 1. If positions already extracted and cached, return instantly!
-      if (receipt.positions && receipt.positions.length > 0) {
-        return res.json({ items: receipt.positions, total: receipt.betrag });
-      }
-
-      // 2. Fallback for older receipts: extract dynamically via Gemini
-      const driveFileId = extractDriveFileId(receipt.driveLink);
-      if (!driveFileId) {
-        return res.status(400).json({ error: "Kein Google Drive Link für diesen Beleg vorhanden." });
-      }
-
-      const user = deps.userRepo.getById(userId);
-      if (!user?.refreshToken) {
-        return res.status(401).json({ error: "Kein Refresh-Token. Bitte erneut anmelden." });
-      }
-
-      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
-      const drive = driveFor(auth);
-
-      // Get file mimeType
-      const meta = await drive.files.get({ fileId: driveFileId, fields: "mimeType" });
-      const mimeType = meta.data.mimeType ?? "application/octet-stream";
-
-      // Download file content as Buffer
-      const buffer = await downloadFile(drive, driveFileId);
-
-      // Call Gemini to extract positions
-      const positions = await deps.gemini.extractPositions({ mimeType, buffer });
-
-      // Save extracted positions to DB for future near-instant access
-      if (positions.items && positions.items.length > 0) {
-        receipt.positions = positions.items;
-        deps.receiptRepo.update(userId, receipt);
-      }
-
-      res.json(positions);
-    } catch (err) {
-      log.error({ err, id: req.params.id }, "failed to extract positions");
-      next(err);
-    }
+  router.post("/:id/positions", (req, res) => {
+    const userId = req.session.userId!;
+    const receipt = deps.receiptRepo.findById(userId, req.params.id);
+    if (!receipt) return res.status(404).json({ error: "receipt not found" });
+    return res.json({ items: receipt.positions ?? [], total: receipt.betrag });
   });
 
   router.put("/:id", (req, res) => {
