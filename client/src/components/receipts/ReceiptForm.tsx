@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencySpinnerInput } from "@/components/ui/currency-spinner";
 import { ReceiptFormZ, type ReceiptFormValues } from "@/lib/validators";
 import { settingsApi } from "@/api/settings";
 
@@ -78,7 +79,7 @@ export function ReceiptForm({
   }, [watchedValues, onValuesChange]);
 
   return (
-    <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-2.5" onSubmit={handleSubmit(onSubmit)}>
       <Field label="Händler" error={errors.haendler?.message}>
         <Input {...register("haendler")} />
       </Field>
@@ -86,13 +87,25 @@ export function ReceiptForm({
         <Input type="date" {...register("datum")} />
       </Field>
       <Field label="Betrag (brutto)" error={errors.betrag?.message}>
-        <Input type="number" step="0.01" {...register("betrag")} />
+        <CurrencySpinnerInput
+          value={watch("betrag") ?? 0}
+          onChange={(v) => setValue("betrag", v, { shouldValidate: true })}
+          currency={watch("waehrung") ?? "EUR"}
+        />
       </Field>
       <Field label="MwSt" error={errors.mwst?.message}>
-        <Input type="number" step="0.01" {...register("mwst")} />
+        <CurrencySpinnerInput
+          value={watch("mwst") ?? 0}
+          onChange={(v) => setValue("mwst", v, { shouldValidate: true })}
+          currency={watch("waehrung") ?? "EUR"}
+        />
       </Field>
       <Field label="Trinkgeld" error={errors.trinkgeld?.message}>
-        <Input type="number" step="0.01" {...register("trinkgeld")} />
+        <CurrencySpinnerInput
+          value={watch("trinkgeld") ?? 0}
+          onChange={(v) => setValue("trinkgeld", v, { shouldValidate: true })}
+          currency={watch("waehrung") ?? "EUR"}
+        />
       </Field>
       <Field label="Währung" error={errors.waehrung?.message}>
         <Select value={watch("waehrung")} onValueChange={(v) => setValue("waehrung", v)}>
@@ -112,10 +125,10 @@ export function ReceiptForm({
           <SelectContent>{ZAHLUNGSMETHODEN.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}</SelectContent>
         </Select>
       </Field>
-      <Field label="Rechnungsnummer" error={errors.rechnungsnummer?.message}>
+      <Field label="Rechnungsnr." error={errors.rechnungsnummer?.message}>
         <Input {...register("rechnungsnummer")} />
       </Field>
-      <div className="md:col-span-2">
+      <div className="pt-2">
         <Button type="submit" disabled={busy || submitDisabled} className="w-full">
           {busy ? "Speichere..." : submitDisabled ? "Duplikat blockiert" : submitLabel}
         </Button>
@@ -126,10 +139,12 @@ export function ReceiptForm({
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+    <div className="flex items-center gap-3">
+      <Label className="w-28 flex-shrink-0 text-right text-xs text-muted-foreground">{label}</Label>
+      <div className="flex-1 min-w-0">
+        {children}
+        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+      </div>
     </div>
   );
 }
