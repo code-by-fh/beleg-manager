@@ -75,6 +75,8 @@ change.
 
 ## Recently Completed (this session)
 
+- **Positionen nachbearbeiten + Anzahl-Aufteilung**: Im "Bearbeiten"-Tab des Beleg-Modals ist jetzt ein Positionen-Editor sichtbar: Bezeichnung, Anzahl und Betrag pro Position sind direkt editierbar, Positionen können hinzugefügt/gelöscht werden. Der Gesamt-Betrag wird beim Speichern automatisch aus der Positionssumme neu berechnet (`PUT /api/receipts/:id/positions`). Im "Aufteilen"-Tab (Einzelpositionen-Modus) können Positionen mit Anzahl > 1 nun per Stück-Zähler (+/−) auf Personen aufgeteilt werden statt nur als Ganzes zugewiesen.
+
 - **Positionen beim ersten Verarbeiten**: Gemini-Fallback im `/:id/positions`-Endpoint entfernt. Positionen werden ausschließlich aus dem SQLite-Cache zurückgegeben. Für neue Belege ist dies nahtlos, da Positionen bereits beim Upload extrahiert werden.
 - **Foto-Upload ohne Zwischenschritt**: Wenn ein Foto ausgewählt wird, startet ein 5-Sekunden-Countdown. Das Foto wird automatisch in die Drive-Inbox gelegt. Der Nutzer kann während des Countdowns abbrechen. Das optionale Kontext-Eingabefeld und der "Erfassen"-Button entfallen komplett.
 - **Mobile: Datum-Feld öffnet Kalender nicht automatisch**: In `ReceiptForm.tsx` wurde das Händler-Feld vor das Datum-Feld gestellt. Dadurch erhält das Text-Feld beim Öffnen den ersten Fokus, nicht das Datum-Feld.
