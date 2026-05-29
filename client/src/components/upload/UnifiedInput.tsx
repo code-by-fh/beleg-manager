@@ -28,28 +28,6 @@ export function UnifiedInput() {
   const [previewFile, setPreviewFile] = useState<DriveInboxFile | null>(null);
   const [discardFileId, setDiscardFileId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!file) { setPreviewUrl(null); return; }
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPreviewUrl(null);
-  }, [file]);
-
-  // Countdown timer: counts down and auto-uploads when reaching 0
-  useEffect(() => {
-    if (mode !== "countdown") return;
-    if (countdown <= 0) {
-      uploadFile();
-      return;
-    }
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, countdown]);
-
   const { data: inboxData, isLoading: inboxLoading, isError: inboxError, error: inboxErrorInfo, refetch: refetchInbox } = useDriveInbox();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -90,6 +68,27 @@ export function UnifiedInput() {
       setFile(null);
     }
   }, [file, qc, toast]);
+
+  useEffect(() => {
+    if (!file) { setPreviewUrl(null); return; }
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreviewUrl(null);
+  }, [file]);
+
+  // Countdown timer: counts down and auto-uploads when reaching 0
+  useEffect(() => {
+    if (mode !== "countdown") return;
+    if (countdown <= 0) {
+      uploadFile();
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [mode, countdown, uploadFile]);
 
   async function submitText() {
     if (!textInput.trim()) { toast({ title: "Bitte zuerst Text eingeben." }); return; }
@@ -407,6 +406,7 @@ export function UnifiedInput() {
         <DialogContent className="max-w-3xl max-h-[85vh] p-4 flex flex-col justify-between rounded-3xl">
           <DialogHeader className="pb-2">
             <DialogTitle className="text-sm font-semibold truncate pr-6">{previewFile?.name}</DialogTitle>
+            <DialogDescription className="sr-only">Vorschau des Belegs</DialogDescription>
           </DialogHeader>
           {previewFile && (
             <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col gap-3">
