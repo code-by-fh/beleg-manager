@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v4";
 
 export const DEFAULT_KATEGORIEN = [
   "Restaurant", "Café", "Supermarkt", "Bäckerei", "Drogerie",
@@ -24,7 +24,11 @@ Regeln:
 - "waehrung" als ISO-4217-Code (EUR, USD, CHF, ...). Default EUR wenn nicht erkennbar.
 - "kategorie" als kurze deutsche Kategorie. Wähle die passendste aus: ${catStr}. Bei unbekanntem Händler: "Sonstiges".
 - "zahlungsmethode" einer von: Bar, (Kredit-)Karte, Sonstiges.
-- "positions": Array aller einzelnen Posten/Zeilen auf dem Beleg mit "name" (Artikel-/Postenbezeichnung) und "amount" (Bruttobetrag dieses Postens).
+- "positions": Array aller einzelnen Posten/Zeilen auf dem Beleg. Jeder Eintrag hat "name" und "amount" (Gesamtbetrag dieser Zeile, also Menge × Stückpreis). Im "name" die Menge voranstellen: "6x Belcando Pferd", "1x Wasser", usw. Wenn keine Menge erkennbar ist, "1x" verwenden.
+  WICHTIG für Mengenzeilen: Kassenbons drucken die Mengenangabe entweder als Unterzeile direkt UNTER dem Artikelnamen oder als Zeile direkt ÜBER dem Artikelnamen. Beide Varianten sind möglich:
+    - Unter dem Artikel: "Belcando Pferd  22,74\n  6 St. x 3,79 EUR/St." → 6x Belcando Pferd
+    - Über dem Artikel: "6 St. x 3,79 EUR/St.\nBelcando Pferd  22,74" → 6x Belcando Pferd
+  Zeilen im Format "N St. x Preis EUR/St.", "N x Preis" o.ä. sind keine eigenen Positionen, sondern Mengendetails des benachbarten Artikels (darüber oder darunter). Nie als separate Position behandeln.
 - Wenn ein Feld nicht erkennbar ist: null.`;
 }
 
