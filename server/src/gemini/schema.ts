@@ -39,8 +39,8 @@ export const GEMINI_RESPONSE_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Name or description of the line item" },
-          amount: { type: "number", description: "Price or amount of the line item" },
+          name: { type: "string", description: "Quantity prefix + item name exactly as on the receipt, e.g. '2x Coffee' or '1x Water'" },
+          amount: { type: "number", description: "Total line amount for this position (quantity × unit price), not the unit price alone" },
         },
         required: ["name", "amount"],
       },
@@ -64,34 +64,4 @@ export function emptyExtraction(): Extraction {
   };
 }
 
-export const ReceiptPositionsZ = z.object({
-  items: z.array(
-    z.object({
-      name: z.string(),
-      amount: z.number(),
-    })
-  ),
-  total: z.number(),
-});
-
-export type ReceiptPositions = z.infer<typeof ReceiptPositionsZ>;
-
-export const GEMINI_POSITIONS_SCHEMA = {
-  type: "object",
-  properties: {
-    items: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "Name/description of the line item" },
-          amount: { type: "number", description: "Price/amount of the line item" },
-        },
-        required: ["name", "amount"],
-      },
-    },
-    total: { type: "number", description: "Total receipt amount" },
-  },
-  required: ["items", "total"],
-} as const;
 
