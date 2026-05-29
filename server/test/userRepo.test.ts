@@ -24,12 +24,10 @@ describe("userRepo", () => {
       driveRootFolderId: "root",
       driveInboxFolderId: "inbox",
       driveArchiveFolderId: "arch",
-      sheetId: "sheet",
     });
     repo.upsert({ id: "g1", email: "a@b.de", name: "Alice 2", refreshToken: "rt2" });
     const u = repo.getById("g1");
     expect(u?.driveRootFolderId).toBe("root");
-    expect(u?.sheetId).toBe("sheet");
     expect(u?.name).toBe("Alice 2");
     expect(u?.refreshToken).toBe("rt2");
   });

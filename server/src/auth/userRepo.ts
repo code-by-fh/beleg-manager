@@ -7,7 +7,6 @@ export type UserRow = {
   driveRootFolderId: string | null;
   driveInboxFolderId: string | null;
   driveArchiveFolderId: string | null;
-  sheetId: string | null;
   refreshToken: string | null;
   createdAt: number;
   gmailPollingEnabled: boolean;
@@ -24,7 +23,6 @@ type DriveAssets = {
   driveRootFolderId: string;
   driveInboxFolderId: string;
   driveArchiveFolderId: string;
-  sheetId: string;
 };
 
 export function createUserRepo(db: Db) {
@@ -47,7 +45,6 @@ export function createUserRepo(db: Db) {
             drive_root_folder_id AS driveRootFolderId,
             drive_inbox_folder_id AS driveInboxFolderId,
             drive_archive_folder_id AS driveArchiveFolderId,
-            sheet_id AS sheetId,
             refresh_token AS refreshToken,
             created_at AS createdAt,
             gmail_polling_enabled AS gmailPollingEnabled,
@@ -68,8 +65,7 @@ export function createUserRepo(db: Db) {
         `UPDATE users SET
           drive_root_folder_id = @driveRootFolderId,
           drive_inbox_folder_id = @driveInboxFolderId,
-          drive_archive_folder_id = @driveArchiveFolderId,
-          sheet_id = @sheetId
+          drive_archive_folder_id = @driveArchiveFolderId
          WHERE id = @id`
       ).run({ id, ...assets });
     },
@@ -81,7 +77,6 @@ export function createUserRepo(db: Db) {
             drive_root_folder_id AS driveRootFolderId,
             drive_inbox_folder_id AS driveInboxFolderId,
             drive_archive_folder_id AS driveArchiveFolderId,
-            sheet_id AS sheetId,
             refresh_token AS refreshToken,
             created_at AS createdAt,
             gmail_polling_enabled AS gmailPollingEnabled,
@@ -105,6 +100,7 @@ export function createUserRepo(db: Db) {
     setTelegramBotToken(id: string, token: string | null): void {
       db.prepare("UPDATE users SET telegram_bot_token = @token WHERE id = @id").run({ id, token });
     },
+
     setUISettings(id: string, settings: { receiptsViewMode?: "table" | "list"; startPage?: string }): void {
       if (settings.receiptsViewMode) {
         db.prepare("UPDATE users SET receipts_view_mode = @mode WHERE id = @id").run({ id, mode: settings.receiptsViewMode });
@@ -120,7 +116,7 @@ export function createUserRepo(db: Db) {
 
     clearDriveFolderIds(id: string): void {
       db.prepare(
-        `UPDATE users SET drive_root_folder_id = NULL, drive_inbox_folder_id = NULL, drive_archive_folder_id = NULL, sheet_id = NULL WHERE id = ?`
+        `UPDATE users SET drive_root_folder_id = NULL, drive_inbox_folder_id = NULL, drive_archive_folder_id = NULL WHERE id = ?`
       ).run(id);
     },
 

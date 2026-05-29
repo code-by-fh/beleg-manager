@@ -28,6 +28,5 @@ export async function bootstrapUserDrive(
     driveRootFolderId: rootId,
     driveInboxFolderId: inboxId,
     driveArchiveFolderId: archiveId,
-    sheetId: existing?.sheetId ?? "",
   });
 }
