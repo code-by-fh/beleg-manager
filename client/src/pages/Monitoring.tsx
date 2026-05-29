@@ -43,7 +43,7 @@ function relativeTime(ts: number): string {
 function ServiceCard({ entry }: { entry: HealthEntry }) {
   const label = SERVICE_LABELS[entry.serviceName] ?? entry.serviceName;
   return (
-    <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] clay-card-static flex flex-col gap-4">
+    <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] flat-card flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{label}</h3>
         <span className={statusBadgeClass(entry.status)}>{statusLabel(entry.status)}</span>

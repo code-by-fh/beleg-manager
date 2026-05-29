@@ -85,17 +85,17 @@
 }
 
 @layer utilities {
-  /* Flat card — replaces clay-card and clay-card-static */
-  .clay-card,
-  .clay-card-static {
+  /* Flat card — replaces flat-card and flat-card */
+  .flat-card,
+  .flat-card {
     background: var(--surface);
     border: 1px solid hsl(var(--border));
     border-radius: 12px;
     box-shadow: var(--card-shadow);
   }
 
-  /* Minimal input — replaces clay-input */
-  .clay-input {
+  /* Minimal input — replaces flat-input */
+  .flat-input {
     background: hsl(var(--input));
     border: 1px solid hsl(var(--border));
     border-radius: 8px;
@@ -105,19 +105,19 @@
     box-shadow: none !important;
   }
 
-  .clay-input::placeholder {
+  .flat-input::placeholder {
     color: hsl(var(--muted-foreground));
     opacity: 1;
   }
 
-  .clay-input:focus-visible,
-  .clay-input:focus {
+  .flat-input:focus-visible,
+  .flat-input:focus {
     border-color: hsl(var(--foreground));
     box-shadow: 0 0 0 3px rgba(0,0,0,0.06) !important;
   }
 
   /* Font helpers — point to DM Sans */
-  .clay-heading  { font-family: 'DM Sans', sans-serif; }
+  .heading-display  { font-family: 'DM Sans', sans-serif; }
   .font-display  { font-family: 'DM Sans', sans-serif; }
 
   /* gradient-text → plain bold foreground */

@@ -349,7 +349,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
         </div>
         
         {viewMode === "table" ? (
-          <div className={hideFilters ? "" : "clay-card-static rounded-2xl overflow-hidden"}>
+          <div className={hideFilters ? "" : "flat-card rounded-2xl overflow-hidden"}>
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-b border-[hsl(var(--border))]">
@@ -466,14 +466,14 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {filtered.length === 0 && (
-              <div className="text-center text-muted-foreground py-12 clay-card-static rounded-2xl">
+              <div className="text-center text-muted-foreground py-12 flat-card rounded-2xl">
                 Keine Belege gefunden.
               </div>
             )}
             {filtered.map((r) => (
               <div
                 key={r.id}
-                className="clay-card-static p-4 space-y-4 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+                className="flat-card p-4 space-y-4 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("a")) return;
                   setDetailRow(r);

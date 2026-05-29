@@ -15,7 +15,7 @@ export function AIProcessingOverlay({ isVisible, message = "KI analysiert Beleg.
       <div className="absolute inset-0 bg-black/50 backdrop-blur-md" />
 
       {/* Card */}
-      <div className="relative w-full max-w-sm clay-card-static rounded-[32px] p-8 overflow-hidden flex flex-col items-center gap-6">
+      <div className="relative w-full max-w-sm flat-card rounded-[32px] p-8 overflow-hidden flex flex-col items-center gap-6">
 
         {/* Ambient glows */}
         <div className="absolute -top-16 -left-16 w-40 h-40 bg-[hsl(var(--foreground))]/15 blur-[50px] rounded-full" />

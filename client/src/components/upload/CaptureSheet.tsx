@@ -75,7 +75,7 @@ export function CaptureSheet({
               rows={4}
               maxLength={500}
               autoFocus
-              className="clay-input w-full px-4 py-3 text-sm resize-none leading-relaxed"
+              className="flat-input w-full px-4 py-3 text-sm resize-none leading-relaxed"
             />
             <button
               onClick={onSubmitText}

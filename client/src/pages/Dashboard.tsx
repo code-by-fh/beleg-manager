@@ -21,7 +21,7 @@ export function DashboardPage() {
     <div className="h-full w-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
       {/* Row 1: KPIs (Full Width) */}
-      <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] clay-card-static">
+      <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] flat-card">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em]">Finanz-Übersicht</h2>
           <div className="flex gap-2">
@@ -35,7 +35,7 @@ export function DashboardPage() {
       {/* Row 2: Main Analytics (2/3 + 1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Expenditure Trend */}
-        <div className="lg:col-span-2 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] clay-card-static flex flex-col min-h-[450px]">
+        <div className="lg:col-span-2 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] flat-card flex flex-col min-h-[450px]">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-1">Ausgaben-Trend</h2>
@@ -48,7 +48,7 @@ export function DashboardPage() {
         </div>
 
         {/* Categories Donut */}
-        <div className="lg:col-span-1 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] clay-card-static flex flex-col min-h-[450px]">
+        <div className="lg:col-span-1 bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-8 shadow-[var(--card-shadow)] flat-card flex flex-col min-h-[450px]">
           <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-8">Kategorien</h2>
           <div className="flex-1 flex items-center justify-center">
             <CategoryDonut />
@@ -60,7 +60,7 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         
         {/* Top Merchants */}
-        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] clay-card-static">
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] flat-card">
           <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-6">Top-Händler</h2>
           <div className="h-[200px]">
             <TopMerchantsChart />
@@ -68,7 +68,7 @@ export function DashboardPage() {
         </div>
 
         {/* Payment Methods */}
-        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] clay-card-static">
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] flat-card">
           <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-6">Zahlungsarten</h2>
           <div className="h-[200px]">
             <PaymentMethodsChart />
@@ -76,7 +76,7 @@ export function DashboardPage() {
         </div>
 
         {/* Weekday Spending */}
-        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] clay-card-static">
+        <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] flat-card">
           <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-6">Aktivität</h2>
           <div className="h-[200px]">
             <WeekdayChart />
@@ -85,7 +85,7 @@ export function DashboardPage() {
 
         {/* Bank Reconcilliation Status */}
         {bankData && (
-          <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] clay-card-static flex flex-col">
+          <div className="bg-[var(--surface)] border border-[hsl(var(--border))] rounded-2xl p-6 shadow-[var(--card-shadow)] flat-card flex flex-col">
             <h2 className="text-[10px] font-black text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-6">Kontoabgleich</h2>
             <div className="flex-1 flex flex-col justify-center gap-6">
               <div className="flex items-center justify-between">
