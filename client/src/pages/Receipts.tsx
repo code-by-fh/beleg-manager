@@ -18,11 +18,11 @@ export function ReceiptsPage() {
           <TabsTrigger value="liste">Liste</TabsTrigger>
           <TabsTrigger value="drive">Google Drive Archiv</TabsTrigger>
         </TabsList>
-        <TabsContent value="liste" className="space-y-8 mt-4">
+        <TabsContent forceMount value="liste" className="space-y-8 mt-4 data-[state=inactive]:hidden">
           <FailedReceiptsSection />
           <ReceiptTable />
         </TabsContent>
-        <TabsContent value="drive" className="mt-4">
+        <TabsContent forceMount value="drive" className="mt-4 data-[state=inactive]:hidden">
           <DriveArchiveTab />
         </TabsContent>
       </Tabs>

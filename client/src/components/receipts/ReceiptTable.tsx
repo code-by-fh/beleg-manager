@@ -2,18 +2,15 @@ import { useMemo, useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, Search, X, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid, Download } from "lucide-react";
+import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid, Download } from "lucide-react";
 import { settingsApi } from "@/api/settings";
 import { useReceipts } from "@/hooks/useReceipts";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
 import { ReceiptFilters, type Filters } from "./ReceiptFilters";
-import { ReceiptForm } from "./ReceiptForm";
-import { SplitEditorDialog, type SplitContext } from "@/components/splits/SplitEditorDialog";
+import { ReceiptDetailModal } from "./ReceiptDetailModal";
 import { receiptsApi } from "@/api/receipts";
 import { splitRequestsApi } from "@/api/splitRequests";
 import { bankApi } from "@/api/bank";
@@ -21,6 +18,7 @@ import type { OutgoingRequest } from "@/api/splitRequests";
 import { useToast } from "@/components/ui/use-toast";
 import { KontobewegungZuordnenDialog } from "@/components/bank/KontobewegungZuordnenDialog";
 import type { ReceiptRow } from "@/types/receipt";
+import type { ReceiptFormValues } from "@/lib/validators";
 
 interface ReceiptTableProps {
   hideFilters?: boolean;
@@ -136,9 +134,9 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
 
   const { toast } = useToast();
   const [filters, setFilters] = useState<Filters>({ search: "", kategorie: "__all__", from: "", to: "" });
-  const [editRow, setEditRow] = useState<ReceiptRow | null>(null);
+  const [detailRow, setDetailRow] = useState<ReceiptRow | null>(null);
+  const [detailInitialTab, setDetailInitialTab] = useState<"details" | "aufteilen">("details");
   const [deleteRow, setDeleteRow] = useState<ReceiptRow | null>(null);
-  const [splitRow, setSplitRow] = useState<ReceiptRow | null>(null);
   const [linkTxRow, setLinkTxRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ column: keyof ReceiptRow; direction: "asc" | "desc" }>({
@@ -233,27 +231,22 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     return limit ? rows.slice(0, limit) : rows;
   }, [data, filters, sortConfig, limit]);
 
-  const splitContext = useMemo((): SplitContext | null => {
-    if (!splitRow) return null;
-    const { direct, bankTx } = getSplitsForReceipt(splitRow.id);
-    return {
-      type: "receipt",
-      receipt: splitRow,
-      linkedBankTxId: matchedReceiptTxMap.get(splitRow.id) ?? null,
-      existingSplits: [...direct, ...bankTx],
-    };
+  const detailExistingSplits = useMemo((): OutgoingRequest[] => {
+    if (!detailRow) return [];
+    const { direct, bankTx } = getSplitsForReceipt(detailRow.id);
+    return [...direct, ...bankTx];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splitRow, outgoingRequests, matchedReceiptTxMap, txSplitMap]);
+  }, [detailRow, outgoingRequests, matchedReceiptTxMap, txSplitMap]);
 
-  async function handleEdit(values: import("@/lib/validators").ReceiptFormValues) {
-    if (!editRow) return;
+  async function handleEdit(values: ReceiptFormValues) {
+    if (!detailRow) return;
     setBusy(true);
     try {
-      await receiptsApi.update(editRow.id, values);
+      await receiptsApi.update(detailRow.id, values);
       qc.invalidateQueries({ queryKey: ["receipts"] });
       qc.invalidateQueries({ queryKey: ["stats"] });
       toast({ title: "Beleg aktualisiert" });
-      setEditRow(null);
+      setDetailRow(null);
     } catch (e) {
       toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message) });
     } finally {
@@ -278,11 +271,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   }
 
   if (isLoading) {
-    return (
-      <div className="w-full">
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <div className="w-full h-64 rounded-lg bg-muted" />;
   }
 
   return (
@@ -405,7 +394,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                     {colVisibility.zahlungsmethode && <TableCell className="text-muted-foreground text-xs">{r.zahlungsmethode}</TableCell>}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setEditRow(r)} aria-label="Bearbeiten">
+                        <Button variant="ghost" size="icon" onClick={() => { setDetailRow(r); setDetailInitialTab("details"); }} aria-label="Bearbeiten">
                           <Pencil className="h-4 w-4" />
                         </Button>
                         {(() => {
@@ -415,7 +404,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => setSplitRow(r)}
+                              onClick={() => { setDetailRow(r); setDetailInitialTab("aufteilen"); }}
                               aria-label="Aufteilen"
                               title={total > 0 ? "Aufteilung bearbeiten" : "Aufteilen"}
                               className={`relative ${total > 0 ? "text-blue-500 hover:text-blue-600" : ""}`}
@@ -498,7 +487,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                     {r.mwst > 0 && <span className="ml-2">MwSt: {formatCurrency(r.mwst, r.waehrung)}</span>}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditRow(r)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setDetailRow(r); setDetailInitialTab("details"); }}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     {(() => {
@@ -509,7 +498,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                           variant="ghost"
                           size="icon"
                           className={`relative h-8 w-8 ${total > 0 ? "text-blue-500" : ""}`}
-                          onClick={() => setSplitRow(r)}
+                          onClick={() => { setDetailRow(r); setDetailInitialTab("aufteilen"); }}
                         >
                           <SplitSquareHorizontal className="h-3.5 w-3.5" />
                           {total > 0 && (
@@ -538,31 +527,14 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
         )}
       </div>
 
-      <Dialog open={editRow !== null} onOpenChange={(open) => { if (!open) setEditRow(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Beleg bearbeiten</DialogTitle>
-          </DialogHeader>
-          {editRow && (
-            <ReceiptForm
-              initial={{
-                datum: editRow.datum,
-                haendler: editRow.haendler,
-                betrag: editRow.betrag,
-                mwst: editRow.mwst,
-                trinkgeld: editRow.trinkgeld,
-                waehrung: editRow.waehrung,
-                kategorie: editRow.kategorie,
-                zahlungsmethode: editRow.zahlungsmethode,
-                rechnungsnummer: editRow.rechnungsnummer,
-              }}
-              busy={busy}
-              onSubmit={handleEdit}
-              submitLabel="Änderungen speichern"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <ReceiptDetailModal
+        receipt={detailRow}
+        initialTab={detailInitialTab}
+        onClose={() => setDetailRow(null)}
+        onEdit={handleEdit}
+        editBusy={busy}
+        existingSplits={detailExistingSplits}
+      />
 
       <Dialog open={deleteRow !== null} onOpenChange={(open) => { if (!open) setDeleteRow(null); }}>
         <DialogContent>
@@ -582,10 +554,6 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SplitEditorDialog
-        context={splitContext}
-        onClose={() => setSplitRow(null)}
-      />
       <KontobewegungZuordnenDialog
         receipt={linkTxRow}
         onClose={() => setLinkTxRow(null)}
