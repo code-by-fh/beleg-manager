@@ -107,7 +107,7 @@ function ManualEntryDialog({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             {/* Left side preview */}
             <div className="md:col-span-6 space-y-3">
-              <div className="clay-card-static overflow-hidden rounded-[24px] p-2 bg-[var(--surface)] border border-border/40">
+              <div className="flat-card overflow-hidden rounded-[24px] p-2 bg-[var(--surface)] border border-border/40">
                 <div className="relative aspect-[1/1.4] w-full overflow-hidden rounded-[18px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/10">
                   {file.mimeType.startsWith("image/") ? (
                     <img
@@ -175,8 +175,7 @@ export function FailedReceiptsSection() {
   const retryVoice = useRetryVoiceJob();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [retryingDrive, setRetryingDrive] = useState<string | null>(null);
-  const [discardFileId, setDiscardFileId] = useState<string | null>(null);
+    const [discardFileId, setDiscardFileId] = useState<string | null>(null);
   const [manualFile, setManualFile] = useState<DriveInboxFile | null>(null);
   const [previewFile, setPreviewFile] = useState<DriveInboxFile | null>(null);
 
@@ -192,8 +191,7 @@ export function FailedReceiptsSection() {
 
   async function retryDrive(fileId: string) {
     retryingRef.current.add(fileId);
-    setRetryingDrive(fileId);
-    try {
+        try {
       const res = await driveApi.importFile(fileId);
       resultsRef.current.push(res);
       qc.invalidateQueries({ queryKey: ["drive", "inbox"] });
@@ -202,8 +200,7 @@ export function FailedReceiptsSection() {
       toast({ title: "Fehler", description: String((e as Error).message) });
     } finally {
       retryingRef.current.delete(fileId);
-      setRetryingDrive(retryingRef.current.size > 0 ? ([...retryingRef.current][0] ?? null) : null);
-      if (retryingRef.current.size === 0 && resultsRef.current.length > 0) {
+            if (retryingRef.current.size === 0 && resultsRef.current.length > 0) {
         const [first, ...rest] = resultsRef.current;
         resultsRef.current = [];
         if (first) {

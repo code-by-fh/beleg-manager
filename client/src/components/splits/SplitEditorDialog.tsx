@@ -10,7 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Sparkles, Loader2, Minus } from "lucide-react";
+import { Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { splitRequestsApi } from "@/api/splitRequests";
 import { useKnownPersons } from "@/hooks/useSplitRequests";
 import { useToast } from "@/components/ui/use-toast";
@@ -121,8 +121,7 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
     setActiveTab("gesamtbetrag");
   }
 
-  const maxSplitCount = positions.length > 0 ? Math.min(10, positions.length) : 10;
-
+  
   // Context-dependent parameters will be derived below, after all hooks.
 
   function addItem() {
