@@ -17,3 +17,7 @@ test-results/
 
 # IDE settings
 .vscode/
+
+# Claude Code / Superpowers tooling
+.claude/worktrees/
+.superpowers/
