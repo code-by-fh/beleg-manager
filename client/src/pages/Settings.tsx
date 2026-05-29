@@ -36,9 +36,7 @@ export function SettingsPage() {
     queryKey: ["ui-settings"],
     queryFn: () => settingsApi.getUI(),
   });
-  const [viewMode, setViewMode] = useState<"table" | "list">(() =>
-    window.innerWidth < 768 ? "list" : "table"
-  );
+  const [viewMode, setViewMode] = useState<"table" | "list">("list");
   const [startPage, setStartPage] = useState("/");
   const [uiSaving, setUISaving] = useState(false);
 

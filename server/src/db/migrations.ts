@@ -85,7 +85,9 @@ export function runMigrations(db: Db): void {
   addColumnIfMissing(db, "users", "gmail_polling_enabled", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "users", "gmail_label_filter", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "users", "telegram_bot_token", "TEXT");
-  addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'table'");
+  addColumnIfMissing(db, "users", "receipts_view_mode", "TEXT NOT NULL DEFAULT 'list'");
+  // Set existing users with default 'table' view mode to 'list'
+  db.exec("UPDATE users SET receipts_view_mode = 'list' WHERE receipts_view_mode = 'table'");
   addColumnIfMissing(db, "users", "start_page", "TEXT NOT NULL DEFAULT '/'");
   addColumnIfMissing(db, "users", "custom_categories", "TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing(db, "receipts", "positions", "TEXT");

@@ -135,7 +135,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const { toast } = useToast();
   const [filters, setFilters] = useState<Filters>({ search: "", kategorie: "__all__", from: "", to: "" });
   const [detailRow, setDetailRow] = useState<ReceiptRow | null>(null);
-  const [detailInitialTab, setDetailInitialTab] = useState<"details" | "aufteilen">("details");
+  const [detailInitialTab, setDetailInitialTab] = useState<"beleg" | "details" | "aufteilen">("details");
   const [deleteRow, setDeleteRow] = useState<ReceiptRow | null>(null);
   const [linkTxRow, setLinkTxRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -151,9 +151,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
     queryKey: ["ui-settings"],
     queryFn: () => settingsApi.getUI(),
   });
-  const [viewMode, setViewMode] = useState<"table" | "list">(() =>
-    window.innerWidth < 768 ? "list" : "table"
-  );
+  const [viewMode, setViewMode] = useState<"table" | "list">("list");
 
   useEffect(() => {
     if (uiSettings?.receiptsViewMode != null) {
@@ -374,7 +372,15 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
                   </TableRow>
                 )}
                 {filtered.map((r) => (
-                  <TableRow key={r.id} className="group hover:bg-[var(--hover-bg)] transition-colors border-b border-[hsl(var(--border))]">
+                  <TableRow
+                    key={r.id}
+                    className="group hover:bg-[var(--hover-bg)] cursor-pointer transition-colors border-b border-[hsl(var(--border))]"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("a")) return;
+                      setDetailRow(r);
+                      setDetailInitialTab(r.driveLink ? "beleg" : "details");
+                    }}
+                  >
                     {colVisibility.datum && <TableCell className="text-muted-foreground font-medium">{formatDateIso(r.datum)}</TableCell>}
                     {colVisibility.haendler && <TableCell className="font-medium">{r.haendler}</TableCell>}
                     {colVisibility.betrag && <TableCell className="text-right">{formatCurrency(r.betrag, r.waehrung)}</TableCell>}
@@ -465,7 +471,15 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
               </div>
             )}
             {filtered.map((r) => (
-              <div key={r.id} className="clay-card-static p-4 space-y-4">
+              <div
+                key={r.id}
+                className="clay-card-static p-4 space-y-4 cursor-pointer hover:bg-[var(--hover-bg)] transition-colors"
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("a")) return;
+                  setDetailRow(r);
+                  setDetailInitialTab(r.driveLink ? "beleg" : "details");
+                }}
+              >
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">{r.haendler}</h3>
