@@ -14,7 +14,7 @@ export type ReceiptRow = {
   driveLink: string;
   eingabeTyp: "foto" | "sprache" | "drive" | "telegram" | "email";
   erstelltAm: string;
-  positions?: Array<{ name: string; amount: number }> | null;
+  positions?: Array<{ name: string; amount: number; quantity?: number }> | null;
 };
 
 type DbReceiptRow = {

@@ -59,5 +59,8 @@ export const receiptsApi = {
   retryVoice: (jobId: string) =>
     api.post<{ ok: true }>(`/api/receipts/retry-voice/${jobId}`, {}),
   extractPositions: (id: string) =>
-    api.post<{ items: Array<{ name: string; amount: number }>; total: number }>(`/api/receipts/${id}/positions`, {}),
+    api.post<{ items: Array<{ name: string; amount: number; quantity?: number }>; total: number }>(`/api/receipts/${id}/positions`, {}),
+  updatePositions: (id: string, positions: Array<{ name: string; amount: number; quantity?: number }>) =>
+    api.put<{ ok: true; row: ReceiptRow }>(`/api/receipts/${id}/positions`, { positions }),
+  previewUrl: (id: string) => `${import.meta.env.VITE_API_URL ?? ""}/api/receipts/${id}/preview`,
 };

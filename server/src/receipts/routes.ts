@@ -399,11 +399,70 @@ export function buildReceiptsRouter(deps: ReceiptsDeps) {
     res.json({ rows });
   });
 
+  router.get("/:id/preview", async (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const receipt = deps.receiptRepo.findById(userId, req.params.id);
+      if (!receipt) return res.status(404).json({ error: "receipt not found" });
+
+      const fileId = extractDriveFileId(receipt.driveLink);
+      if (!fileId) return res.status(404).json({ error: "no drive file attached" });
+
+      const user = deps.userRepo.getById(userId);
+      if (!user?.refreshToken) return res.status(503).json({ error: "drive unavailable" });
+
+      const auth = buildOAuth2ClientForRefreshToken(deps.config.google, user.refreshToken);
+      const drive = driveFor(auth);
+      const meta = await drive.files.get({ fileId, fields: "mimeType" });
+      const mimeType = meta.data.mimeType ?? "application/octet-stream";
+      const fileRes = await drive.files.get(
+        { fileId, alt: "media" },
+        { responseType: "stream" }
+      );
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      (fileRes.data as NodeJS.ReadableStream).pipe(res);
+    } catch (err) {
+      log.error({ err }, "receipt-preview error");
+      next(err);
+    }
+  });
+
   router.post("/:id/positions", (req, res) => {
     const userId = req.session.userId!;
     const receipt = deps.receiptRepo.findById(userId, req.params.id);
     if (!receipt) return res.status(404).json({ error: "receipt not found" });
     return res.json({ items: receipt.positions ?? [], total: receipt.betrag });
+  });
+
+  const UpdatePositionsBody = z.object({
+    positions: z.array(z.object({
+      name: z.string().min(1),
+      amount: z.number(),
+      quantity: z.number().int().min(1).optional(),
+    })),
+  });
+
+  router.put("/:id/positions", (req, res) => {
+    const parsed = UpdatePositionsBody.safeParse(req.body);
+    if (!parsed.success) {
+      log.warn({ body: req.body, errors: parsed.error.flatten() }, "PUT positions validation failed");
+      return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
+    }
+
+    const userId = req.session.userId!;
+    const existing = deps.receiptRepo.findById(userId, req.params.id);
+    if (!existing) return res.status(404).json({ error: "receipt not found" });
+
+    const positions = parsed.data.positions;
+    const betrag = Math.round(positions.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+
+    const updated = { ...existing, positions, betrag };
+    const ok = deps.receiptRepo.update(userId, updated);
+    if (!ok) return res.status(404).json({ error: "update failed" });
+
+    res.json({ ok: true, row: updated });
   });
 
   router.put("/:id", (req, res) => {
