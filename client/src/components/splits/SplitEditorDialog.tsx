@@ -10,7 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Trash2, Sparkles, Loader2, Minus } from "lucide-react";
 import { splitRequestsApi } from "@/api/splitRequests";
 import { useKnownPersons } from "@/hooks/useSplitRequests";
 import { useToast } from "@/components/ui/use-toast";
@@ -56,6 +56,7 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
   const [loadingPositions, setLoadingPositions] = useState(false);
   const [positionAssignments, setPositionAssignments] = useState<Record<number, string[]>>({});
   const [activeTab, setActiveTab] = useState<"gesamtbetrag" | "positions">("gesamtbetrag");
+  const [splitCount, setSplitCount] = useState(2);
 
   const contextKey =
     context?.type === "receipt" ? context.receipt.id : context?.transaction.id;
@@ -82,17 +83,21 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
   useEffect(() => {
     if (!context) return;
     const existing = context.existingSplits;
-    setItems(
-      existing.length > 0
-        ? existing.map((r) => ({
-            toUser: r.toUser,
-            freeName: r.freeName ?? "",
-            betrag: String(r.betrag),
-            searchInput: r.toUser?.name ?? r.freeName ?? "",
-            showDropdown: false,
-          }))
-        : [{ toUser: null, freeName: "", betrag: (Math.round((totalAmount / 2) * 100) / 100).toFixed(2), searchInput: "", showDropdown: false }]
-    );
+    if (existing.length > 0) {
+      setItems(
+        existing.map((r) => ({
+          toUser: r.toUser,
+          freeName: r.freeName ?? "",
+          betrag: String(r.betrag),
+          searchInput: r.toUser?.name ?? r.freeName ?? "",
+          showDropdown: false,
+        }))
+      );
+      setSplitCount(existing.length + 1);
+    } else {
+      setSplitCount(2);
+      setItems([{ toUser: null, freeName: "", betrag: (Math.round((totalAmount / 2) * 100) / 100).toFixed(2), searchInput: "", showDropdown: false }]);
+    }
     // Reset positions states when context changes
     setPositions([]);
     setPositionAssignments({});
@@ -100,17 +105,37 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextKey, totalAmount]);
 
+  const maxSplitCount = positions.length > 0 ? Math.min(10, positions.length) : 10;
+
+  function applySplitCount(n: number) {
+    const clamped = Math.max(2, Math.min(maxSplitCount, n));
+    setSplitCount(clamped);
+    const share = (Math.round((totalAmount / clamped) * 100) / 100).toFixed(2);
+    setItems((prev) =>
+      Array.from({ length: clamped - 1 }, (_, i) => ({
+        toUser: prev[i]?.toUser ?? null,
+        freeName: prev[i]?.freeName ?? "",
+        searchInput: prev[i]?.searchInput ?? "",
+        showDropdown: false,
+        betrag: share,
+      }))
+    );
+  }
+
   // Context-dependent parameters will be derived below, after all hooks.
 
   function addItem() {
+    if (splitCount >= maxSplitCount) return;
     setItems((prev) => [
       ...prev,
       { toUser: null, freeName: "", betrag: "", searchInput: "", showDropdown: false },
     ]);
+    setSplitCount((c) => c + 1);
   }
 
   function removeItem(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
+    setSplitCount((c) => Math.max(2, c - 1));
     setPositionAssignments((prev) => {
       const next: Record<number, string[]> = {};
       Object.entries(prev).forEach(([pKey, assigned]) => {
@@ -321,6 +346,31 @@ export function SplitEditorDialog({ context, onClose }: SplitEditorDialogProps) 
 
   const renderManualSplit = () => (
     <div className="space-y-3 py-2">
+      <div className="flex items-center gap-2 pb-1">
+        <span className="text-xs text-muted-foreground">Gleich aufteilen in</span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => applySplitCount(splitCount - 1)}
+            disabled={splitCount <= 2}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          <span className="w-8 text-center text-sm font-semibold tabular-nums">{splitCount}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => applySplitCount(splitCount + 1)}
+            disabled={splitCount >= maxSplitCount}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+        <span className="text-xs text-muted-foreground">Teile</span>
+      </div>
       {items.map((item, idx) => (
         <div key={idx} className="flex gap-2 items-start animate-in fade-in slide-in-from-top-1 duration-200">
           <PersonPicker
