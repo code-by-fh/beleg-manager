@@ -1,14 +1,7 @@
 import { useRef, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DuplicatesList } from "@/components/bank/DuplicatesList";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, ExternalLink, Trash2, ChevronDown, ChevronUp, SplitSquareHorizontal, ArrowDownLeft } from "lucide-react";
+import { Upload, ExternalLink, } from "lucide-react";
 import { bankApi } from "@/api/bank";
 import { receiptsApi } from "@/api/receipts";
 import { splitRequestsApi } from "@/api/splitRequests";
@@ -39,123 +32,9 @@ import type { BankTransaction, DuplicateInfo } from "@/types/bank";
 import type { ReceiptRow } from "@/types/receipt";
 import type { OutgoingRequest } from "@/api/splitRequests";
 
-// ── Confidence badge ──────────────────────────────────────────────────────────
-
-function ConfidenceBadge({ confidence }: { confidence: BankTransaction["matchConfidence"] }) {
-  if (!confidence) return null;
-  const map: Record<NonNullable<BankTransaction["matchConfidence"]>, { label: string; cls: string }> = {
-    high:   { label: "Hoch",    cls: "bg-green-100 text-green-700" },
-    medium: { label: "Mittel",  cls: "bg-yellow-100 text-yellow-700" },
-    low:    { label: "Niedrig", cls: "bg-orange-100 text-orange-700" },
-    manual: { label: "Manuell", cls: "bg-blue-100 text-blue-700" },
-  };
-  const { label, cls } = map[confidence];
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
-      {label}
-    </span>
-  );
-}
-
-// ── Betrag cell ───────────────────────────────────────────────────────────────
-
-function BetragCell({ betrag }: { betrag: number }) {
-  if (betrag < 0) {
-    return <span className="text-red-500 font-medium">−{formatCurrency(Math.abs(betrag))}</span>;
-  }
-  return <span className="text-green-600 font-medium">{formatCurrency(betrag)}</span>;
-}
-
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="text-center text-muted-foreground py-10">
-        {message}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-// ── Inline delete confirm cell ────────────────────────────────────────────────
-
-function DeleteCell({
-  isConfirming,
-  isBusy,
-  onAskConfirm,
-  onConfirm,
-  onCancel,
-}: {
-  isConfirming: boolean;
-  isBusy: boolean;
-  onAskConfirm: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  if (isConfirming) {
-    return (
-      <div className="flex items-center justify-end gap-1">
-        <span className="text-xs text-muted-foreground mr-1">Löschen?</span>
-        <Button size="sm" variant="destructive" onClick={onConfirm} disabled={isBusy} className="h-7 px-2">
-          Ja
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={isBusy} className="h-7 px-2">
-          Nein
-        </Button>
-      </div>
-    );
-  }
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={onAskConfirm}
-      disabled={isBusy}
-      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-      title="Transaktion löschen"
-    >
-      <Trash2 className="h-3.5 w-3.5" />
-    </Button>
-  );
-}
-
-// ── Duplicates list ───────────────────────────────────────────────────────────
-
-function DuplicatesList({ duplicates }: { duplicates: DuplicateInfo[] }) {
-  const [open, setOpen] = useState(false);
-  if (duplicates.length === 0) return null;
-
-  const visible = duplicates.slice(0, 10);
-  const rest = duplicates.length - visible.length;
-
-  return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
-      <button
-        type="button"
-        className="flex items-center gap-2 text-sm font-medium text-amber-800 w-full text-left"
-        onClick={() => setOpen((o) => !o)}
-      >
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        {duplicates.length} bereits vorhandene Transaktion{duplicates.length !== 1 ? "en" : ""} übersprungen
-      </button>
-      {open && (
-        <ul className="space-y-1 pl-6">
-          {visible.map((d, i) => (
-            <li key={i} className="text-xs text-amber-700 flex gap-3">
-              <span className="text-muted-foreground w-24 shrink-0">{formatDateIso(d.buchungsdatum)}</span>
-              <span className="flex-1 truncate">{d.haendler}</span>
-              <span className="shrink-0"><BetragCell betrag={d.betrag} /></span>
-            </li>
-          ))}
-          {rest > 0 && (
-            <li className="text-xs text-muted-foreground pl-0">… und {rest} weitere</li>
-          )}
-        </ul>
-      )}
-    </div>
-  );
-}
+import { UnmatchedTab } from "@/components/bank/UnmatchedTab";
+import { MatchedTab } from "@/components/bank/MatchedTab";
+import { IgnoredTab } from "@/components/bank/IgnoredTab";
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -611,325 +490,49 @@ export function KontoabgleichPage() {
 
           {/* ── Nicht zugeordnet ── */}
           <TabsContent value="unmatched">
-            <div className="rounded-xl border border-border overflow-hidden mt-2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-border">
-                    <TableHead>Datum</TableHead>
-                    <TableHead>Händler</TableHead>
-                    <TableHead className="text-right">Betrag</TableHead>
-                    <TableHead className="max-w-[200px]">Verwendungszweck</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unmatched.length === 0 ? (
-                    <EmptyRow colSpan={5} message="Alle Transaktionen sind zugeordnet oder ignoriert." />
-                  ) : (
-                    unmatched.map((tx) => {
-                      const linkedSplits = splitsByTxId.get(tx.id) ?? [];
-                      return (
-                      <TableRow
-                        key={tx.id}
-                        className="hover:bg-muted/30 transition-colors border-b border-border"
-                      >
-                        <TableCell className="text-muted-foreground">
-                          {formatDateIso(tx.buchungsdatum)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium leading-tight">{tx.haendler}</div>
-                          {linkedSplits.length > 0 && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <ArrowDownLeft className="h-3 w-3 text-green-600 shrink-0" />
-                              <span className="text-xs text-green-700 font-medium">
-                                {linkedSplits.map((s) => s.freeName ?? s.toUser?.name ?? "Unbekannt").join(", ")}
-                                {" · "}{formatCurrency(linkedSplits.reduce((sum, s) => sum + s.betrag, 0))}
-                              </span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <BetragCell betrag={tx.betrag} />
-                        </TableCell>
-                        <TableCell
-                          className="max-w-[200px] truncate text-muted-foreground text-xs"
-                          title={tx.verwendungszweck}
-                        >
-                          {tx.verwendungszweck}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {deleteConfirmTx === tx.id ? (
-                              <DeleteCell
-                                isConfirming
-                                isBusy={busyTx === tx.id}
-                                onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                onConfirm={() => handleDeleteTx(tx.id)}
-                                onCancel={() => setDeleteConfirmTx(null)}
-                              />
-                            ) : (
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={() => setAssignTx(tx)}
-                                  disabled={busyTx === tx.id}
-                                >
-                                  Zuordnen
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={splitsByTxId.has(tx.id) ? "secondary" : "outline"}
-                                  onClick={() => setSplitTx(tx)}
-                                  disabled={busyTx === tx.id}
-                                  title="Aufteilung anfordern"
-                                  className={splitsByTxId.has(tx.id) ? "text-blue-600" : ""}
-                                >
-                                  <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />
-                                  Aufteilen
-                                  {(splitsByTxId.get(tx.id)?.length ?? 0) > 0 && (
-                                    <span className="ml-1 rounded-full bg-blue-200 text-blue-700 px-1.5 text-[10px] font-bold leading-none">
-                                      {splitsByTxId.get(tx.id)!.length}
-                                    </span>
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleIgnore(tx)}
-                                  disabled={busyTx === tx.id}
-                                >
-                                  Ignorieren
-                                </Button>
-                                <DeleteCell
-                                  isConfirming={false}
-                                  isBusy={busyTx === tx.id}
-                                  onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                  onConfirm={() => handleDeleteTx(tx.id)}
-                                  onCancel={() => setDeleteConfirmTx(null)}
-                                />
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );})
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <UnmatchedTab
+              unmatched={unmatched}
+              splitsByTxId={splitsByTxId}
+              deleteConfirmTx={deleteConfirmTx}
+              busyTx={busyTx}
+              onAskConfirm={setDeleteConfirmTx}
+              onConfirmDelete={handleDeleteTx}
+              onCancelDelete={() => setDeleteConfirmTx(null)}
+              onAssign={setAssignTx}
+              onSplit={setSplitTx}
+              onIgnore={handleIgnore}
+            />
           </TabsContent>
 
           {/* ── Abgeglichen ── */}
           <TabsContent value="matched">
-            <div className="rounded-xl border border-border overflow-hidden mt-2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-border">
-                    <TableHead>Datum</TableHead>
-                    <TableHead>Händler</TableHead>
-                    <TableHead className="text-right">Betrag</TableHead>
-                    <TableHead>Konfidenz</TableHead>
-                    <TableHead>Verknüpfter Beleg</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {matched.length === 0 ? (
-                    <EmptyRow colSpan={6} message="Noch keine Transaktionen abgeglichen." />
-                  ) : (
-                    matched.map((tx) => {
-                      const receipt = tx.matchedReceiptId
-                        ? receiptMap.get(tx.matchedReceiptId)
-                        : undefined;
-                      return (
-                        <TableRow
-                          key={tx.id}
-                          className="hover:bg-muted/30 transition-colors border-b border-border"
-                        >
-                          <TableCell className="text-muted-foreground">
-                            {formatDateIso(tx.buchungsdatum)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium leading-tight">{tx.haendler}</div>
-                            {tx.verwendungszweck && (
-                              <div
-                                className="text-xs text-muted-foreground truncate max-w-[200px]"
-                                title={tx.verwendungszweck}
-                              >
-                                {tx.verwendungszweck}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <BetragCell betrag={tx.betrag} />
-                          </TableCell>
-                          <TableCell>
-                            <ConfidenceBadge confidence={tx.matchConfidence} />
-                          </TableCell>
-                          <TableCell>
-                            {receipt ? (
-                              <button
-                                className="text-left hover:underline"
-                                onClick={() => setViewReceipt(receipt)}
-                              >
-                                <span className="font-medium text-sm">{receipt.haendler}</span>
-                                <span className="text-muted-foreground text-xs ml-1.5">
-                                  {formatDateIso(receipt.datum)} ·{" "}
-                                  {formatCurrency(receipt.betrag, receipt.waehrung)}
-                                </span>
-                              </button>
-                            ) : (() => {
-                              const linked = splitsByTxId.get(tx.id) ?? [];
-                              if (linked.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
-                              return (
-                                <div className="flex items-center gap-1">
-                                  <ArrowDownLeft className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                  <span className="text-sm font-medium text-green-700">
-                                    {linked.map((s) => s.freeName ?? s.toUser?.name ?? "Unbekannt").join(", ")}
-                                  </span>
-                                  <span className="text-muted-foreground text-xs">
-                                    · {formatCurrency(linked.reduce((sum, s) => sum + s.betrag, 0))}
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {deleteConfirmTx === tx.id ? (
-                                <DeleteCell
-                                  isConfirming
-                                  isBusy={busyTx === tx.id}
-                                  onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                  onConfirm={() => handleDeleteTx(tx.id)}
-                                  onCancel={() => setDeleteConfirmTx(null)}
-                                />
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setAssignTx(tx)}
-                                    disabled={busyTx === tx.id}
-                                  >
-                                    Neu zuordnen
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant={splitsByTxId.has(tx.id) ? "secondary" : "outline"}
-                                    onClick={() => setSplitTx(tx)}
-                                    disabled={busyTx === tx.id}
-                                    title="Aufteilung anfordern"
-                                    className={splitsByTxId.has(tx.id) ? "text-blue-600" : ""}
-                                  >
-                                    <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />
-                                    Aufteilen
-                                    {(splitsByTxId.get(tx.id)?.length ?? 0) > 0 && (
-                                      <span className="ml-1 rounded-full bg-blue-200 text-blue-700 px-1.5 text-[10px] font-bold leading-none">
-                                        {splitsByTxId.get(tx.id)!.length}
-                                      </span>
-                                    )}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleUnmatch(tx)}
-                                    disabled={busyTx === tx.id}
-                                  >
-                                    Aufheben
-                                  </Button>
-                                  <DeleteCell
-                                    isConfirming={false}
-                                    isBusy={busyTx === tx.id}
-                                    onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                    onConfirm={() => handleDeleteTx(tx.id)}
-                                    onCancel={() => setDeleteConfirmTx(null)}
-                                  />
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <MatchedTab
+              matched={matched}
+              splitsByTxId={splitsByTxId}
+              receiptMap={receiptMap}
+              deleteConfirmTx={deleteConfirmTx}
+              busyTx={busyTx}
+              onAskConfirm={setDeleteConfirmTx}
+              onConfirmDelete={handleDeleteTx}
+              onCancelDelete={() => setDeleteConfirmTx(null)}
+              onReassign={setAssignTx}
+              onSplit={setSplitTx}
+              onUnmatch={handleUnmatch}
+              onViewReceipt={setViewReceipt}
+            />
           </TabsContent>
 
           {/* ── Ignoriert ── */}
           <TabsContent value="ignored">
-            <div className="rounded-xl border border-border overflow-hidden mt-2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-border">
-                    <TableHead>Datum</TableHead>
-                    <TableHead>Händler</TableHead>
-                    <TableHead className="text-right">Betrag</TableHead>
-                    <TableHead className="max-w-[200px]">Verwendungszweck</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ignored.length === 0 ? (
-                    <EmptyRow colSpan={5} message="Keine ignorierten Transaktionen." />
-                  ) : (
-                    ignored.map((tx) => (
-                      <TableRow
-                        key={tx.id}
-                        className="hover:bg-muted/30 transition-colors border-b border-border"
-                      >
-                        <TableCell className="text-muted-foreground">
-                          {formatDateIso(tx.buchungsdatum)}
-                        </TableCell>
-                        <TableCell className="font-medium">{tx.haendler}</TableCell>
-                        <TableCell className="text-right">
-                          <BetragCell betrag={tx.betrag} />
-                        </TableCell>
-                        <TableCell
-                          className="max-w-[200px] truncate text-muted-foreground text-xs"
-                          title={tx.verwendungszweck}
-                        >
-                          {tx.verwendungszweck}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {deleteConfirmTx === tx.id ? (
-                              <DeleteCell
-                                isConfirming
-                                isBusy={busyTx === tx.id}
-                                onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                onConfirm={() => handleDeleteTx(tx.id)}
-                                onCancel={() => setDeleteConfirmTx(null)}
-                              />
-                            ) : (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleUnmatch(tx)}
-                                  disabled={busyTx === tx.id}
-                                >
-                                  Wiederherstellen
-                                </Button>
-                                <DeleteCell
-                                  isConfirming={false}
-                                  isBusy={busyTx === tx.id}
-                                  onAskConfirm={() => setDeleteConfirmTx(tx.id)}
-                                  onConfirm={() => handleDeleteTx(tx.id)}
-                                  onCancel={() => setDeleteConfirmTx(null)}
-                                />
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <IgnoredTab
+              ignored={ignored}
+              deleteConfirmTx={deleteConfirmTx}
+              busyTx={busyTx}
+              onAskConfirm={setDeleteConfirmTx}
+              onConfirmDelete={handleDeleteTx}
+              onCancelDelete={() => setDeleteConfirmTx(null)}
+              onRestore={handleUnmatch}
+            />
           </TabsContent>
         </Tabs>
       )}
