@@ -60,7 +60,6 @@ export function ReceiptDetailModal({
 
   const [mainTab, setMainTab] = useState<MainTab>(initialTab);
   const [splitMode, setSplitMode] = useState<SplitMode>("gesamtbetrag");
-  const [splitCount, setSplitCount] = useState(2);
   const [items, setItems] = useState<Item[]>([
     {
       toUser: null,
@@ -88,35 +87,52 @@ export function ReceiptDetailModal({
   const [editPositions, setEditPositions] = useState<EditPosition[]>([]);
   const [editPositionsBusy, setEditPositionsBusy] = useState(false);
 
+  const currentSplits = useMemo(() => {
+    if (!receipt) return [];
+    return existingSplits.filter((s) => s.receiptSqliteId === receipt.id);
+  }, [receipt?.id, existingSplits]);
+
+  const [lastReceiptId, setLastReceiptId] = useState<string | null>(null);
+  const [lastHasSplits, setLastHasSplits] = useState<boolean>(false);
+
   const totalAmount = receipt?.betrag ?? 0;
   const waehrung = receipt?.waehrung ?? "EUR";
-  const hasExisting = existingSplits.length > 0;
+  const hasExisting = currentSplits.length > 0;
   const hasImage = Boolean(receipt?.driveLink);
 
-  useEffect(() => {
-    if (!receipt) return;
+  const shouldInitialize = receipt && (
+    receipt.id !== lastReceiptId ||
+    (hasExisting && !lastHasSplits)
+  );
+
+  if (shouldInitialize) {
+    setLastReceiptId(receipt.id);
+    setLastHasSplits(hasExisting);
     setMainTab(initialTab);
     setSplitMode("gesamtbetrag");
-    if (existingSplits.length > 0) {
-      setSplitCount(existingSplits.length + 1);
+
+    if (hasExisting) {
+      const count = currentSplits.length + 1;
+      const share = (Math.round((totalAmount / count) * 100) / 100).toFixed(2);
       setItems(
-        existingSplits.map((r) => ({
+        currentSplits.map((r) => ({
           toUser: r.toUser,
           freeName: r.freeName ?? "",
-          betrag: String(r.betrag),
+          betrag: share,
           searchInput: r.toUser?.name ?? r.freeName ?? "",
           showDropdown: false,
         })),
       );
     } else {
-      setSplitCount(2);
-      setItems([{
-        toUser: null,
-        freeName: "",
-        betrag: (Math.round((totalAmount / 2) * 100) / 100).toFixed(2),
-        searchInput: "",
-        showDropdown: false,
-      }]);
+      setItems([
+        {
+          toUser: null,
+          freeName: "",
+          betrag: (Math.round((totalAmount / 2) * 100) / 100).toFixed(2),
+          searchInput: "",
+          showDropdown: false,
+        },
+      ]);
     }
     setIsPdf(false);
     setImageLoaded(false);
@@ -125,8 +141,7 @@ export function ReceiptDetailModal({
     setPositionQuantityAssignments({});
     setPositionSplitMode({});
     setEditPositions([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt?.id]);
+  }
 
   useEffect(() => {
     if (receipt && positions.length === 0 && !loadingPositions) loadPositions();
@@ -181,40 +196,32 @@ export function ReceiptDetailModal({
 
   // ── Split items helpers ──────────────────────────────────────────────────
 
-  function applySplitCount(n: number) {
-    const clamped = Math.max(2, Math.min(10, n));
-    setSplitCount(clamped);
-    const share = (Math.round((totalAmount / clamped) * 100) / 100).toFixed(2);
-    setItems((prev) =>
-      Array.from({ length: clamped - 1 }, (_, i) => ({
-        toUser: prev[i]?.toUser ?? null,
-        freeName: prev[i]?.freeName ?? "",
-        searchInput: prev[i]?.searchInput ?? "",
-        showDropdown: false,
-        betrag: share,
-      })),
-    );
-  }
-
   function addItem() {
-    setSplitCount((c) => c + 1);
-    const newCount = splitCount + 1;
-    const share = (Math.round((totalAmount / newCount) * 100) / 100).toFixed(2);
-    setItems((prev) => [
-      ...prev.map((item) => ({ ...item, betrag: share })),
-      {
-        toUser: null,
-        freeName: "",
-        betrag: share,
-        searchInput: "",
-        showDropdown: false,
-      },
-    ]);
+    setItems((prev) => {
+      const newCount = prev.length + 2; // owner + existing items + new item
+      const share = (Math.round((totalAmount / newCount) * 100) / 100).toFixed(2);
+      return [
+        ...prev.map((item) => ({ ...item, betrag: share })),
+        {
+          toUser: null,
+          freeName: "",
+          betrag: share,
+          searchInput: "",
+          showDropdown: false,
+        },
+      ];
+    });
   }
 
   function removeItem(idx: number) {
-    setSplitCount((c) => Math.max(2, c - 1));
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    setItems((prev) => {
+      const filtered = prev.filter((_, i) => i !== idx);
+      const nextCount = Math.max(2, filtered.length + 1); // owner + remaining items
+      const share = (Math.round((totalAmount / nextCount) * 100) / 100).toFixed(2);
+      return filtered.map((item) =>
+        splitMode === "gesamtbetrag" ? { ...item, betrag: share } : item
+      );
+    });
     setPositionAssignments((prev) => {
       const next: Record<number, string[]> = {};
       for (const [key, assigned] of Object.entries(prev)) {
@@ -345,6 +352,20 @@ export function ReceiptDetailModal({
     items.length,
     splitMode,
   ]);
+ 
+  // When switching splitMode back to "gesamtbetrag", recalculate even split
+  useEffect(() => {
+    if (splitMode === "gesamtbetrag") {
+      setItems((prev) => {
+        const count = prev.length + 1; // owner + items
+        const share = (Math.round((totalAmount / count) * 100) / 100).toFixed(2);
+        return prev.map((item) => ({
+          ...item,
+          betrag: share,
+        }));
+      });
+    }
+  }, [splitMode, totalAmount]);
 
   // ── Positions editor helpers ─────────────────────────────────────────────
 
@@ -405,9 +426,9 @@ export function ReceiptDetailModal({
     if (!valid.length) return;
     setBusy(true);
     try {
-      if (existingSplits.length > 0) {
+      if (currentSplits.length > 0) {
         await Promise.all(
-          existingSplits.map((r) => splitRequestsApi.delete(r.id)),
+          currentSplits.map((r) => splitRequestsApi.delete(r.id)),
         );
       }
       const driveFileId =
@@ -588,7 +609,7 @@ export function ReceiptDetailModal({
                       wheel={{ step: 0.05 }}
                       doubleClick={{ mode: "reset" }}
                       panning={{ velocityDisabled: true }}
-                      centerOnInit={true}
+                      centerOnInit={false}
                     >
                       <TransformComponent
                         wrapperStyle={{
@@ -600,7 +621,7 @@ export function ReceiptDetailModal({
                           width: "100%",
                           display: "flex",
                           justifyContent: "center",
-                          alignItems: "center",
+                          alignItems: "flex-start",
                         }}
                       >
                         <img
@@ -849,19 +870,6 @@ export function ReceiptDetailModal({
               <div className="flex-1 overflow-y-auto px-5">
                 {splitMode === "gesamtbetrag" ? (
                   <div className="space-y-3 pb-4">
-                    <div className="flex items-center gap-2 pb-1">
-                      <span className="text-xs text-muted-foreground">Gleich aufteilen in</span>
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => applySplitCount(splitCount - 1)} disabled={splitCount <= 2}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-semibold tabular-nums">{splitCount}</span>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => applySplitCount(splitCount + 1)} disabled={splitCount >= 10}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <span className="text-xs text-muted-foreground">Teile</span>
-                    </div>
                     {items.map((item, idx) => (
                       <div
                         key={idx}
@@ -978,7 +986,7 @@ export function ReceiptDetailModal({
                             return (
                               <div
                                 key={pIdx}
-                                className="rounded-xl border border-border/60 bg-card p-3 space-y-2"
+                                className="rounded-xl border border-border/60 bg-card p-3 space-y-2 shrink-0"
                               >
                                 <div className="flex justify-between items-start gap-2">
                                   <div className="flex items-baseline gap-1.5 min-w-0">
@@ -1092,7 +1100,7 @@ export function ReceiptDetailModal({
                                   </div>
                                 ) : (
                                   /* Toggle-based assignment */
-                                  <div className="flex flex-wrap gap-1">
+                                  <div className="flex flex-wrap gap-1.5">
                                     {participants.map((part) => {
                                       const active = assigned.includes(part.id);
                                       return (
@@ -1103,7 +1111,7 @@ export function ReceiptDetailModal({
                                             toggleAssignment(pIdx, part.id)
                                           }
                                           className={[
-                                            "px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all",
+                                            "px-3 py-1 rounded-full text-[11px] font-semibold transition-all shrink-0 select-none touch-manipulation",
                                             active
                                               ? "bg-primary text-primary-foreground"
                                               : "bg-muted/50 text-muted-foreground hover:bg-muted border border-border/40",
