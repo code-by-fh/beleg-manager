@@ -21,7 +21,6 @@ describe("db migrations", () => {
         "drive_root_folder_id",
         "drive_inbox_folder_id",
         "drive_archive_folder_id",
-        "sheet_id",
         "created_at",
       ])
     );

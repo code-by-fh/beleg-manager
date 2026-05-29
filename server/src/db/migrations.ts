@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS users (
   drive_root_folder_id TEXT,
   drive_inbox_folder_id TEXT,
   drive_archive_folder_id TEXT,
-  sheet_id TEXT,
   refresh_token TEXT,
   created_at INTEGER NOT NULL
 );
