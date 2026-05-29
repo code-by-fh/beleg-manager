@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { computeSummary, computeMonthly, computeCategories } from "../src/stats/compute.js";
-import type { ReceiptRow } from "../src/google/sheets.js";
+import type { ReceiptRow } from "../src/receipts/receiptRepo.js";
 
 const r = (datum: string, betrag: number, kategorie = "Restaurant"): ReceiptRow => ({
-  id: "x", datum, haendler: "h", betrag, mwst: 0, waehrung: "EUR",
+  id: "x", datum, haendler: "h", betrag, mwst: 0, trinkgeld: 0, waehrung: "EUR",
   kategorie, zahlungsmethode: "Karte", rechnungsnummer: "",
   driveLink: "", eingabeTyp: "foto", erstelltAm: "",
 });
