@@ -20,7 +20,7 @@ export function CaptureSheet({
 }: CaptureSheetProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="fixed bottom-0 inset-x-0 top-auto rounded-t-2xl rounded-b-none max-w-none w-full p-0 border-t border-border/40 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom duration-300">
+      <DialogContent className="fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 rounded-t-2xl rounded-b-none max-w-none w-full p-0 border-t border-border/40 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom duration-300 md:left-[50%] md:top-[50%] md:bottom-auto md:right-auto md:translate-x-[-50%] md:translate-y-[-50%] md:max-w-md md:rounded-2xl md:border md:border-border/40 md:shadow-2xl">
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-8 h-1 bg-border rounded-full" />
         </div>
