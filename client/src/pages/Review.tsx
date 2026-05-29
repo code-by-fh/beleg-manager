@@ -1,11 +1,12 @@
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ReceiptForm } from "@/components/receipts/ReceiptForm";
+import { ReviewPreview } from "@/components/receipts/ReviewPreview";
 import { useToast } from "@/components/ui/use-toast";
 import { receiptsApi } from "@/api/receipts";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Extraction, ReceiptRow } from "@/types/receipt";
-import { CheckCircle2, ArrowLeft, AlertTriangle, Trash2, FileText } from "lucide-react";
+import { CheckCircle2, ArrowLeft, AlertTriangle, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -67,7 +68,7 @@ export function ReviewPage() {
   if (!pendingId || fetchError) {
     return (
       <div className="h-full flex items-center justify-center px-6">
-        <div className="clay-card-static p-6 max-w-sm w-full text-center space-y-3">
+        <div className="flat-card p-6 max-w-sm w-full text-center space-y-3">
           <p className="text-muted-foreground text-sm">Review-Sitzung nicht mehr gültig. Bitte erneut hochladen.</p>
           <button onClick={() => navigate("/upload")} className="text-primary text-sm hover:opacity-80 transition">
             Zurück
@@ -80,7 +81,7 @@ export function ReviewPage() {
   if (!extraction) {
     return (
       <div className="h-full flex items-center justify-center px-6">
-        <div className="clay-card-static p-6 max-w-sm w-full text-center">
+        <div className="flat-card p-6 max-w-sm w-full text-center">
           <p className="text-muted-foreground text-sm animate-pulse">Lade Beleg…</p>
         </div>
       </div>
@@ -136,7 +137,7 @@ export function ReviewPage() {
         </div>
 
         {/* Info banner */}
-        <div className="clay-card-static px-4 py-2.5 flex items-center gap-2 rounded-2xl">
+        <div className="flat-card px-4 py-2.5 flex items-center gap-2 rounded-2xl">
           <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
           <p className="text-muted-foreground text-xs">KI hat die Felder extrahiert — bitte prüfen und ggf. korrigieren.</p>
         </div>
@@ -157,7 +158,7 @@ export function ReviewPage() {
 
         {isVoiceEntry ? (
           /* Form without preview (voice/text entry) */
-          <div className="clay-card-static rounded-[32px] p-6 space-y-4">
+          <div className="flat-card rounded-[32px] p-6 space-y-4">
             <ReceiptForm
               initial={initial}
               busy={busy}
@@ -196,43 +197,12 @@ export function ReviewPage() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             {/* Left/Right Column: Document Preview (Sticky on desktop) */}
             <div className="md:col-span-6 space-y-4 md:sticky md:top-6">
-              <div className="clay-card-static overflow-hidden rounded-[32px] p-2 bg-[var(--surface)] border border-border/40">
-                <div className="relative aspect-[1/1.4] w-full overflow-hidden rounded-[24px] bg-black/5 dark:bg-white/5 flex items-center justify-center border border-border/10">
-                  {mimeType.startsWith("image/") ? (
-                    <img
-                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
-                      alt="Beleg Vorschau"
-                      className="max-h-full max-w-full object-contain select-none transition-transform duration-300 hover:scale-[1.02]"
-                    />
-                  ) : mimeType === "application/pdf" ? (
-                    <iframe
-                      src={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
-                      className="w-full h-full rounded-[20px] border-0"
-                      title="PDF Vorschau"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground p-8">
-                      <FileText className="h-10 w-10" />
-                      <span className="text-xs font-medium">Beleg-Datei</span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3 text-center">
-                  <a
-                    href={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-semibold text-primary/80 hover:text-primary transition-colors underline underline-offset-4 decoration-primary/20 hover:decoration-primary"
-                  >
-                    {mimeType === "application/pdf" ? "PDF in neuem Tab öffnen" : "Bild in neuem Tab öffnen"}
-                  </a>
-                </div>
-              </div>
+              <ReviewPreview mimeType={mimeType} previewUrl={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/pending/${pendingId}/preview`} />
             </div>
 
             {/* Right/Left Column: Form */}
             <div className="md:col-span-6 space-y-4">
-              <div className="clay-card-static rounded-[32px] p-6 space-y-4">
+              <div className="flat-card rounded-[32px] p-6 space-y-4">
                 <ReceiptForm
                   initial={initial}
                   busy={busy}
