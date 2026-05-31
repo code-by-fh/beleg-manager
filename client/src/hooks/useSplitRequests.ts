@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { splitRequestsApi } from "@/api/splitRequests";
+import type { SplitRequestStatus } from "@/api/splitRequests";
 
 export function useIncomingRequests() {
   return useQuery({
@@ -29,7 +30,7 @@ export function usePendingCount() {
 export function useUpdateRequestStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "pending" | "accepted" | "rejected" | "cancelled" | "settled" }) =>
+    mutationFn: ({ id, status }: { id: string; status: SplitRequestStatus }) =>
       splitRequestsApi.updateStatus(id, status),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["split-requests"] });
@@ -41,6 +42,27 @@ export function useDeleteRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => splitRequestsApi.delete(id),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
+    },
+  });
+}
+
+export function useApproveRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => splitRequestsApi.approve(id),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["split-requests"] });
+    },
+  });
+}
+
+export function useAdjustRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, betrag, positions }: { id: string; betrag: number; positions: any[] }) =>
+      splitRequestsApi.adjust(id, { betrag, positions }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["split-requests"] });
     },

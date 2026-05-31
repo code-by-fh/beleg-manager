@@ -1,6 +1,6 @@
 import { api } from "./client";
 
-export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled" | "settled";
+export type SplitRequestStatus = "pending" | "accepted" | "angepasst" | "rejected" | "cancelled" | "settled";
 
 export type ReceiptMeta = {
   haendler: string;
@@ -26,8 +26,10 @@ export type SplitRequest = {
   updatedAt: number;
   linkedBankTxId: string | null;
   linkedBankTxSource: "manual" | "receipt" | null;
-  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
-  adjustedByRecipient?: boolean;
+  positions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
+  adjustedByRecipient?: number;
+  originalBetrag?: number | null;
+  originalPositions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
 };
 
 export type IncomingRequest = SplitRequest & { fromUser: UserInfo | null };
@@ -50,11 +52,17 @@ export const splitRequestsApi = {
     receiptMeta: ReceiptMeta;
     betrag: number;
     nachricht: string;
-    positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
+    positions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
   }) => api.post<{ request: SplitRequest }>("/api/split-requests", payload),
 
   updateStatus: (id: string, status: SplitRequestStatus) =>
     api.patch<{ ok: true }>(`/api/split-requests/${id}/status`, { status }),
+
+  approve: (id: string) =>
+    api.patch<{ ok: true }>(`/api/split-requests/${id}/approve`, {}),
+
+  adjust: (id: string, payload: { betrag: number; positions: any[] }) =>
+    api.patch<{ ok: true }>(`/api/split-requests/${id}/adjust`, payload),
 
   linkBankTx: (id: string, bankTxId: string | null) =>
     api.patch<{ ok: true }>(`/api/split-requests/${id}/bank-tx`, { bankTxId }),

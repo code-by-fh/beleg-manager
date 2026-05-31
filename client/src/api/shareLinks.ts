@@ -17,7 +17,7 @@ export type PublicSplitRequestItem = {
   nachricht: string;
   status: string;
   hasReceipt: boolean;
-  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
+  positions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
 };
 
 export type PublicShareData = {
