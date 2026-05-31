@@ -75,6 +75,14 @@ change.
 
 ## Recently Completed (this session)
 
+- **Gemeinsame Belegaufteilung & Freigabe-Workflow (Overhaul)**:
+  - Integration des einheitlichen Beleg-Detailmodals (`ReceiptDetailModal.tsx`) für Empfänger (in-app und auf der öffentlichen `/share/:token` Freigabeseite) anstelle von einfachen Vorschaudialogen oder rudimentären Inline-Formularen.
+  - Empfänger können Aufteilungszuweisungen interaktiv im Posten-Workspace anpassen und speichern.
+  - Änderungen durch den Empfänger werden dauerhaft für alle Beteiligten sichtbar markiert: Als ausstehend (`adjusted_by_recipient = 1`, pulsierendes orangefarbenes Badge) oder freigegeben (`adjusted_by_recipient = 2`, grünes Badge).
+  - Der Belegbesitzer kann ausstehende Anpassungen direkt unter `/requests` über eine grüne Schaltfläche „Freigeben“ per Klick genehmigen.
+  - Vollständige Entfernung des alten inline Editierungs-Formulars in `ShareRequestCard.tsx` unter Beibehaltung der schnellen Direktaktionen (Annehmen / Ablehnen).
+  - Vollständige Typsicherheits-Garantie durch Behebung aller TypeScript-Compilerfehler im Frontend und Backend.
+
 - **Vereinfachte dynamische Aufteilungs-Initialisierung (Gleichmäßig aufteilen nach Personenanzahl)**: Das unhandliche und fehleranfällige „Gleich aufteilen in... Teile“ Auswahlelement (inklusive der +/- Knöpfe und des separaten `splitCount` States) wurde vollständig aus der Benutzeroberfläche und dem Code entfernt.
   - Die Berechnung der gleichmäßigen Aufteilungsbeträge erfolgt in [ReceiptDetailModal.tsx](file:///c:/Development/beleg-manager/client/src/components/receipts/ReceiptDetailModal.tsx) und [SplitEditorDialog.tsx](file:///c:/Development/beleg-manager/client/src/components/splits/SplitEditorDialog.tsx) nun **vollkommen dynamisch** direkt anhand der Anzahl der hinzugefügten Personen in der Liste (Gesamtanzahl = Besitzer + hinzugefügte Personen).
   - Beim Hinzufügen einer Person per "Person hinzufügen" (z.B. sasa) oder beim Löschen einer Person wird der Gesamtbetrag augenblicklich und formschön neu berechnet und absolut gleichmäßig unter allen Beteiligten aufgeteilt (z.B. bei 29,30 € und sasa als einziger hinzugefügter Person erhält sasa sofort mathematisch korrekte 14,65 € und der Restbetrag löst sich vollständig auf 0 € auf).
