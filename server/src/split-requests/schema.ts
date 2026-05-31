@@ -17,6 +17,7 @@ export const CreateSplitRequestBody = z.object({
     name: z.string(),
     amount: z.number(),
     assigned: z.array(z.string()),
+    quantity: z.number().int().positive().optional(),
   })).optional().nullable(),
 }).refine(
   (d) => d.toUserId || d.freeName,

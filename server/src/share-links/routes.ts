@@ -88,11 +88,12 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
           const rc = db.prepare("SELECT positions FROM receipts WHERE id = ?").get(r.receiptSqliteId) as { positions: string | null } | undefined;
           if (rc?.positions) {
             try {
-              const parsedPositions = JSON.parse(rc.positions) as Array<{ name: string; amount: number }>;
+              const parsedPositions = JSON.parse(rc.positions) as Array<{ name: string; amount: number; quantity?: number }>;
               positionsList = parsedPositions.map((pos) => ({
                 name: pos.name,
                 amount: pos.amount,
-                assigned: []
+                assigned: [],
+                quantity: pos.quantity,
               }));
             } catch {}
           }
@@ -108,7 +109,7 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
           status: r.status,
           hasReceipt: !!r.receiptId,
           positions: positionsList || null,
-          adjustedByRecipient: r.adjustedByRecipient || false,
+          adjustedByRecipient: r.adjustedByRecipient || 0,
         };
       });
 
@@ -192,7 +193,7 @@ export function buildShareLinksRouter(deps: ShareLinksRouterDeps) {
       const filtered = getFilteredRequests(link);
       const splitReq = filtered.find((r) => r.id === req.params.requestId);
       if (!splitReq) return res.status(404).json({ error: "not found" });
-      if (splitReq.status !== "pending" && splitReq.status !== "accepted") {
+      if (splitReq.status !== "pending" && splitReq.status !== "accepted" && splitReq.status !== "angepasst") {
         return res.status(409).json({ error: "request cannot be adjusted" });
       }
 

@@ -194,6 +194,46 @@ export function runMigrations(db: Db): void {
   // Safety net: ensure these columns exist regardless of which recreations ran above
   addColumnIfMissing(db, "split_requests", "positions", "TEXT");
   addColumnIfMissing(db, "split_requests", "adjusted_by_recipient", "INTEGER DEFAULT 0");
+  addColumnIfMissing(db, "split_requests", "original_betrag", "REAL");
+  addColumnIfMissing(db, "split_requests", "original_positions", "TEXT");
+
+  // Recreate split_requests to allow 'angepasst' in the CHECK constraint
+  const srSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'split_requests'").get() as { sql: string } | undefined;
+  if (srSql2 && !srSql2.sql.includes("'angepasst'")) {
+    db.exec(`
+      CREATE TABLE split_requests_new (
+        id                    TEXT PRIMARY KEY,
+        from_user_id          TEXT NOT NULL,
+        to_user_id            TEXT,
+        free_name             TEXT,
+        receipt_id            TEXT,
+        receipt_sqlite_id     TEXT,
+        receipt_meta          TEXT NOT NULL,
+        betrag                REAL NOT NULL,
+        nachricht             TEXT NOT NULL DEFAULT '',
+        status                TEXT NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending','accepted','angepasst','rejected','cancelled','settled')),
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        positions             TEXT,
+        adjusted_by_recipient INTEGER DEFAULT 0,
+        FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO split_requests_new
+        (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
+         receipt_meta, betrag, nachricht, status, created_at, updated_at,
+         positions, adjusted_by_recipient)
+      SELECT id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
+             receipt_meta, betrag, nachricht, status, created_at, updated_at,
+             positions, adjusted_by_recipient
+      FROM split_requests;
+      DROP TABLE split_requests;
+      ALTER TABLE split_requests_new RENAME TO split_requests;
+      CREATE INDEX IF NOT EXISTS idx_split_req_to   ON split_requests(to_user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status);
+    `);
+  }
 
   // failed_uploads: for direct-upload receipts where Gemini failed
   db.exec(`

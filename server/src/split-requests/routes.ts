@@ -123,7 +123,7 @@ export function buildSplitRequestsRouter(
       const splitReq = splitRequestRepo.getById(req.params.id!);
       if (!splitReq) return res.status(404).json({ error: "not found" });
       if (splitReq.toUserId !== userId) return res.status(403).json({ error: "forbidden" });
-      if (!["pending", "accepted"].includes(splitReq.status)) {
+      if (!["pending", "accepted", "angepasst"].includes(splitReq.status)) {
         return res.status(403).json({ error: "forbidden" });
       }
       if (!splitReq.receiptId) return res.status(404).json({ error: "no receipt file attached" });
@@ -223,6 +223,38 @@ export function buildSplitRequestsRouter(
       }
 
       splitRequestRepo.updateStatus(req.params.id!, status);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  router.patch("/:id/approve", (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const splitReq = splitRequestRepo.getById(req.params.id!);
+      if (!splitReq) return res.status(404).json({ error: "not found" });
+      if (splitReq.fromUserId !== userId) return res.status(403).json({ error: "forbidden" });
+
+      splitRequestRepo.approveRequest(req.params.id!);
+      res.json({ ok: true });
+    } catch (err) { next(err); }
+  });
+
+  router.patch("/:id/adjust", (req, res, next) => {
+    try {
+      const userId = req.session.userId!;
+      const { betrag, positions } = req.body as { betrag?: number; positions?: any[] };
+      if (typeof betrag !== "number" || betrag <= 0 || !Array.isArray(positions)) {
+        return res.status(400).json({ error: "invalid adjustment data" });
+      }
+
+      const splitReq = splitRequestRepo.getById(req.params.id!);
+      if (!splitReq) return res.status(404).json({ error: "not found" });
+      if (splitReq.toUserId !== userId) return res.status(403).json({ error: "forbidden" });
+      if (splitReq.status !== "pending" && splitReq.status !== "accepted" && splitReq.status !== "angepasst") {
+        return res.status(409).json({ error: "request cannot be adjusted" });
+      }
+
+      splitRequestRepo.adjustRequest(req.params.id!, betrag, positions);
       res.json({ ok: true });
     } catch (err) { next(err); }
   });

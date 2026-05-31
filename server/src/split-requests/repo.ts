@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Db } from "../db/index.js";
 
-export type SplitRequestStatus = "pending" | "accepted" | "rejected" | "cancelled" | "settled";
+export type SplitRequestStatus = "pending" | "accepted" | "angepasst" | "rejected" | "cancelled" | "settled";
 
 export type ReceiptMeta = {
   haendler: string;
@@ -23,14 +23,16 @@ export type SplitRequestRow = {
   status: SplitRequestStatus;
   createdAt: number;
   updatedAt: number;
-  positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
-  adjustedByRecipient?: boolean;
+  positions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
+  adjustedByRecipient?: number;
+  originalBetrag?: number | null;
+  originalPositions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
 };
 
-type RawRow = Omit<SplitRequestRow, "receiptMeta" | "positions" | "adjustedByRecipient"> & {
+type RawRow = Omit<SplitRequestRow, "receiptMeta" | "positions" | "originalPositions"> & {
   receiptMeta: string;
   positions?: string | null;
-  adjusted_by_recipient?: number;
+  originalPositions?: string | null;
 };
 
 const SELECT_COLS = `
@@ -45,16 +47,19 @@ const SELECT_COLS = `
   created_at AS createdAt,
   updated_at AS updatedAt,
   positions,
-  adjusted_by_recipient AS adjustedByRecipient
+  adjusted_by_recipient AS adjustedByRecipient,
+  original_betrag   AS originalBetrag,
+  original_positions AS originalPositions
 `;
 
 function parseRow(raw: RawRow): SplitRequestRow {
-  const { receiptMeta, positions, ...rest } = raw;
+  const { receiptMeta, positions, originalPositions, ...rest } = raw;
   return {
     ...rest,
     receiptMeta: JSON.parse(receiptMeta) as ReceiptMeta,
     positions: positions ? JSON.parse(positions) : null,
-    adjustedByRecipient: raw.adjusted_by_recipient === 1 || !!(raw as any).adjustedByRecipient,
+    adjustedByRecipient: raw.adjustedByRecipient ?? 0,
+    originalPositions: originalPositions ? JSON.parse(originalPositions) : null,
   } as SplitRequestRow;
 }
 
@@ -69,7 +74,7 @@ export function createSplitRequestRepo(db: Db) {
       receiptMeta: ReceiptMeta;
       betrag: number;
       nachricht: string;
-      positions?: Array<{ name: string; amount: number; assigned: string[] }> | null;
+      positions?: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }> | null;
     }): SplitRequestRow {
       const now = Date.now();
       const id = uuidv4();
@@ -130,12 +135,27 @@ export function createSplitRequestRepo(db: Db) {
       return result.changes > 0;
     },
 
-    adjustRequest(id: string, betrag: number, positions: Array<{ name: string; amount: number; assigned: string[] }>): boolean {
+    adjustRequest(id: string, betrag: number, positions: Array<{ name: string; amount: number; assigned: string[]; quantity?: number }>): boolean {
       const result = db.prepare(
-        `UPDATE split_requests 
-         SET betrag = ?, positions = ?, status = 'accepted', adjusted_by_recipient = 1, updated_at = ?
+        `UPDATE split_requests
+         SET betrag = ?,
+             positions = ?,
+             status = 'angepasst',
+             adjusted_by_recipient = 1,
+             updated_at = ?,
+             original_betrag = COALESCE(original_betrag, betrag),
+             original_positions = COALESCE(original_positions, positions)
          WHERE id = ?`
       ).run(betrag, JSON.stringify(positions), Date.now(), id);
+      return result.changes > 0;
+    },
+
+    approveRequest(id: string): boolean {
+      const result = db.prepare(
+        `UPDATE split_requests 
+         SET adjusted_by_recipient = 2, status = 'accepted', updated_at = ?
+         WHERE id = ?`
+      ).run(Date.now(), id);
       return result.changes > 0;
     },
 
