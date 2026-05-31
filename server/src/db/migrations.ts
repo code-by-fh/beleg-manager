@@ -217,16 +217,18 @@ export function runMigrations(db: Db): void {
         updated_at            INTEGER NOT NULL,
         positions             TEXT,
         adjusted_by_recipient INTEGER DEFAULT 0,
+        original_betrag       REAL,
+        original_positions    TEXT,
         FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
       );
       INSERT INTO split_requests_new
         (id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
          receipt_meta, betrag, nachricht, status, created_at, updated_at,
-         positions, adjusted_by_recipient)
+         positions, adjusted_by_recipient, original_betrag, original_positions)
       SELECT id, from_user_id, to_user_id, free_name, receipt_id, receipt_sqlite_id,
              receipt_meta, betrag, nachricht, status, created_at, updated_at,
-             positions, adjusted_by_recipient
+             positions, adjusted_by_recipient, original_betrag, original_positions
       FROM split_requests;
       DROP TABLE split_requests;
       ALTER TABLE split_requests_new RENAME TO split_requests;
@@ -234,6 +236,10 @@ export function runMigrations(db: Db): void {
       CREATE INDEX IF NOT EXISTS idx_split_req_from ON split_requests(from_user_id, status);
     `);
   }
+
+  // Safety net: ensure original_* columns exist after any recreation above
+  addColumnIfMissing(db, "split_requests", "original_betrag", "REAL");
+  addColumnIfMissing(db, "split_requests", "original_positions", "TEXT");
 
   // failed_uploads: for direct-upload receipts where Gemini failed
   db.exec(`
