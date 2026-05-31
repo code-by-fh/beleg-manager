@@ -43,6 +43,12 @@ interface ReceiptDetailModalProps {
   onEdit: (values: ReceiptFormValues) => Promise<void>;
   editBusy: boolean;
   existingSplits: OutgoingRequest[];
+  isRecipient?: boolean;
+  recipientRequest?: any;
+  onAdjustSplit?: (betrag: number, positions: any[]) => Promise<void>;
+  customPreviewUrl?: string;
+  /** When true, render the content inline (no Dialog wrapper) inside a bounded container. */
+  inline?: boolean;
 }
 
 export function ReceiptDetailModal({
@@ -52,6 +58,11 @@ export function ReceiptDetailModal({
   onEdit,
   editBusy,
   existingSplits,
+  isRecipient = false,
+  recipientRequest,
+  onAdjustSplit,
+  customPreviewUrl,
+  inline = false,
 }: ReceiptDetailModalProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -99,18 +110,88 @@ export function ReceiptDetailModal({
   const hasExisting = currentSplits.length > 0;
   const hasImage = Boolean(receipt?.driveLink);
 
+  const targetId = isRecipient && recipientRequest ? recipientRequest.id : receipt?.id;
+
   const shouldInitialize = receipt && (
-    receipt.id !== lastReceiptId ||
+    targetId !== lastReceiptId ||
     (hasExisting && !lastHasSplits)
   );
 
   if (shouldInitialize) {
-    setLastReceiptId(receipt.id);
+    setLastReceiptId(targetId ?? null);
     setLastHasSplits(hasExisting);
     setMainTab(initialTab);
-    setSplitMode("gesamtbetrag");
+    setSplitMode(isRecipient ? "positions" : "gesamtbetrag");
 
-    if (hasExisting) {
+    if (isRecipient && recipientRequest) {
+      const reqPositions = recipientRequest.positions || [];
+      const seen = new Set<string>();
+      for (const pos of reqPositions) {
+        for (const a of pos.assigned) {
+          const match = a.match(/(.+?)\s*\((\d+)\s*[x×]\)/i);
+          const cleanName = match ? match[1]!.trim() : a;
+          seen.add(cleanName);
+        }
+      }
+      const allParticipants = [...seen];
+      const otherNames = allParticipants.filter((p) => p !== "Ich" && p !== "Ersteller" && p !== "owner");
+
+      setItems(
+        otherNames.map((name) => ({
+          toUser: null,
+          freeName: name,
+          betrag: "0",
+          searchInput: name,
+          showDropdown: false,
+        })),
+      );
+
+      setPositions(
+        reqPositions.map((p: any) => ({
+          name: p.name,
+          amount: p.amount,
+          quantity: p.quantity || 1,
+        })),
+      );
+
+      const initialAssign: Record<number, string[]> = {};
+      const initialQty: Record<number, Record<string, number>> = {};
+      reqPositions.forEach((p: any, pIdx: number) => {
+        const assigned: string[] = [];
+        p.assigned.forEach((name: string) => {
+          const match = name.match(/(.+?)\s*\((\d+)\s*[x×]\)/i);
+          const cleanName = match ? match[1]!.trim() : name;
+          if (cleanName === "Ich" || cleanName === "Ersteller" || cleanName === "owner") {
+            assigned.push("owner");
+          } else {
+            const idx = otherNames.indexOf(cleanName);
+            if (idx !== -1) {
+              assigned.push(`item-${idx}`);
+            }
+          }
+        });
+        initialAssign[pIdx] = assigned.length > 0 ? assigned : ["owner"];
+        if (p.quantity && p.quantity > 1) {
+          const qtyMap: Record<string, number> = {};
+          p.assigned.forEach((name: string) => {
+            const match = name.match(/(.+?)\s*\((\d+)\s*[x×]\)/i);
+            const cleanName = match ? match[1]!.trim() : name;
+            const qtyVal = match ? parseInt(match[2]!, 10) : 1;
+            if (cleanName === "Ich" || cleanName === "Ersteller" || cleanName === "owner") {
+              qtyMap["owner"] = qtyVal;
+            } else {
+              const idx = otherNames.indexOf(cleanName);
+              if (idx !== -1) {
+                qtyMap[`item-${idx}`] = qtyVal;
+              }
+            }
+          });
+          initialQty[pIdx] = qtyMap;
+        }
+      });
+      setPositionAssignments(initialAssign);
+      setPositionQuantityAssignments(initialQty);
+    } else if (hasExisting) {
       const count = currentSplits.length + 1;
       const share = (Math.round((totalAmount / count) * 100) / 100).toFixed(2);
       setItems(
@@ -135,17 +216,20 @@ export function ReceiptDetailModal({
     }
     setIsPdf(false);
     setImageLoaded(false);
-    setPositions([]);
-    setPositionAssignments({});
-    setPositionQuantityAssignments({});
+    if (!isRecipient) {
+      setPositions([]);
+      setPositionAssignments({});
+      setPositionQuantityAssignments({});
+    }
+
     setPositionSplitMode({});
     setEditPositions([]);
   }
 
   useEffect(() => {
-    if (receipt && positions.length === 0 && !loadingPositions) loadPositions();
+    if (receipt && positions.length === 0 && !loadingPositions && !isRecipient) loadPositions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt?.id, positions.length]);
+  }, [receipt?.id, positions.length, isRecipient]);
 
   function parsePositionName(raw: string): { name: string; quantity: number } {
     const m = raw.match(/^(\d+)\s*[x×]\s*(.+)$/i);
@@ -275,21 +359,41 @@ export function ReceiptDetailModal({
   function setQuantityAssignment(
     pIdx: number,
     participantId: string,
-    units: number,
+    newUnits: number,
   ) {
     const pos = positions[pIdx];
     const totalQty = pos?.quantity ?? 1;
     setPositionQuantityAssignments((prev) => {
-      const current =
-        prev[pIdx] || (pos?.quantity ? { owner: pos.quantity } : {});
-      const otherTotal = Object.entries(current)
-        .filter(([id]) => id !== participantId)
-        .reduce((s, [, u]) => s + u, 0);
-      const clamped = Math.max(0, Math.min(totalQty - otherTotal, units));
-      return {
-        ...prev,
-        [pIdx]: { ...current, [participantId]: clamped },
-      };
+      const current = prev[pIdx] ?? { owner: totalQty };
+      const currentUnits = current[participantId] ?? 0;
+      const delta = Math.max(-currentUnits, Math.min(totalQty - currentUnits, newUnits - currentUnits));
+      if (delta === 0) return prev;
+
+      // Priority order for balancing: owner first, then items in order — excluding self
+      const allIds = ["owner", ...participants.filter((p) => p.id !== "owner").map((p) => p.id)];
+      const others = allIds.filter((id) => id !== participantId);
+
+      const updated: Record<string, number> = { ...current, [participantId]: currentUnits + delta };
+      let remaining = Math.abs(delta);
+
+      for (const otherId of others) {
+        if (remaining <= 0) break;
+        const otherUnits = updated[otherId] ?? 0;
+        if (delta > 0) {
+          // Taking units — reduce other
+          const take = Math.min(remaining, otherUnits);
+          updated[otherId] = otherUnits - take;
+          remaining -= take;
+        } else {
+          // Giving units — add to other
+          updated[otherId] = otherUnits + remaining;
+          remaining = 0;
+        }
+      }
+
+      // If we couldn't fully satisfy the change (e.g. all others at 0), revert
+      if (remaining > 0) return prev;
+      return { ...prev, [pIdx]: updated };
     });
   }
 
@@ -422,16 +526,9 @@ export function ReceiptDetailModal({
           (i.toUser || i.freeName.trim() || i.searchInput.trim()) &&
           parseFloat(i.betrag) > 0,
       );
-    if (!valid.length) return;
+    if (!isRecipient && !valid.length) return;
     setBusy(true);
     try {
-      if (currentSplits.length > 0) {
-        await Promise.all(
-          currentSplits.map((r) => splitRequestsApi.delete(r.id)),
-        );
-      }
-      const driveFileId =
-        receipt.driveLink?.match(/\/file\/d\/([^/?]+)/)?.[1] ?? null;
       const positionsPayload =
         splitMode === "positions" && positions.length > 0
           ? positions.map((pos, pIdx) => {
@@ -456,11 +553,12 @@ export function ReceiptDetailModal({
                       : `Person ${n + 1}`;
                     return units === 1 ? name : `${name} (${units}×)`;
                   });
-                return { name: pos.name, amount: pos.amount, assigned };
+                return { name: pos.name, amount: pos.amount, quantity: pos.quantity, assigned };
               }
               return {
                 name: pos.name,
                 amount: pos.amount,
+                quantity: pos.quantity,
                 assigned: (positionAssignments[pIdx] || ["owner"]).map((id) => {
                   if (id === "owner") return "Ich";
                   const n = parseInt(id.replace("item-", ""), 10);
@@ -476,6 +574,25 @@ export function ReceiptDetailModal({
               };
             })
           : null;
+
+      if (isRecipient && onAdjustSplit) {
+        const recipientItem = items[0];
+        const adjustedBetrag = recipientItem ? parseFloat(recipientItem.betrag) : totalAmount;
+        // Guard: the server rejects a non-positive amount. If the recipient assigned
+        // themselves no positions, their share is 0 (NaN here) — bail out instead of sending null.
+        if (!Number.isFinite(adjustedBetrag) || adjustedBetrag <= 0) return;
+        await onAdjustSplit(adjustedBetrag, positionsPayload || []);
+        onClose();
+        return;
+      }
+
+      if (currentSplits.length > 0) {
+        await Promise.all(
+          currentSplits.map((r) => splitRequestsApi.delete(r.id)),
+        );
+      }
+      const driveFileId =
+        receipt.driveLink?.match(/\/file\/d\/([^/?]+)/)?.[1] ?? null;
       await Promise.all(
         valid.map((i) =>
           splitRequestsApi.create({
@@ -518,40 +635,17 @@ export function ReceiptDetailModal({
   );
   const remaining = Math.round((totalAmount - totalAssigned) * 100) / 100;
 
+  // For the recipient flow the saved amount is their own share (items[0]). The server rejects
+  // a non-positive amount, so saving is only valid once they assigned themselves something.
+  const recipientShare = parseFloat(items[0]?.betrag ?? "");
+  const recipientShareInvalid = isRecipient && !(recipientShare > 0);
+
   const TRIGGER_BASE =
     "flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all duration-150 " +
     "text-muted-foreground hover:text-foreground " +
     "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/40";
 
-  return (
-    <Dialog
-      open={receipt !== null}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent
-        className={[
-          "flex flex-col gap-0 p-0 overflow-hidden",
-          "left-0 top-0 translate-x-0 translate-y-0 w-screen h-screen max-w-none rounded-none",
-          "md:left-[50%] md:top-[50%] md:-translate-x-1/2 md:-translate-y-1/2 md:w-auto md:h-[85vh] md:max-w-2xl md:rounded-2xl",
-        ].join(" ")}
-      >
-        {/* ── Header ───────────────────────────────────────────── */}
-        <DialogHeader className="flex-shrink-0 px-5 pt-3 pb-3 border-b border-border/40">
-          <DialogTitle className="text-base">
-            {receipt?.haendler ?? "Beleg"}
-          </DialogTitle>
-          {receipt && (
-            <DialogDescription className="text-xs">
-              {formatDateIso(receipt.datum)} ·{" "}
-              {formatCurrency(receipt.betrag, receipt.waehrung)}
-              {receipt.kategorie ? ` · ${receipt.kategorie}` : ""}
-            </DialogDescription>
-          )}
-        </DialogHeader>
-
-        {receipt && (
+  const tabs = receipt && (
           <Tabs
             value={mainTab}
             onValueChange={(v) => setMainTab(v as MainTab)}
@@ -563,7 +657,7 @@ export function ReceiptDetailModal({
                 className={[
                   "grid w-full p-1 h-auto gap-1",
                   "bg-muted/50 rounded-xl border border-border/30",
-                  hasImage ? "grid-cols-3" : "grid-cols-2",
+                  isRecipient ? "grid-cols-2" : (hasImage ? "grid-cols-3" : "grid-cols-2"),
                 ].join(" ")}
               >
                 {hasImage && (
@@ -572,10 +666,12 @@ export function ReceiptDetailModal({
                     <span>Beleg</span>
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="details" className={TRIGGER_BASE}>
-                  <Pencil className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>Bearbeiten</span>
-                </TabsTrigger>
+                {!isRecipient && (
+                  <TabsTrigger value="details" className={TRIGGER_BASE}>
+                    <Pencil className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>Bearbeiten</span>
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="aufteilen" className={TRIGGER_BASE}>
                   <SplitSquareHorizontal className="h-3.5 w-3.5 flex-shrink-0" />
                   <span>Aufteilen</span>
@@ -591,7 +687,7 @@ export function ReceiptDetailModal({
               >
                 {isPdf ? (
                   <iframe
-                    src={receiptsApi.previewUrl(receipt.id)}
+                    src={customPreviewUrl || receiptsApi.previewUrl(receipt.id)}
                     className="w-full h-full border-0"
                     title="Beleg Vorschau"
                   />
@@ -624,7 +720,7 @@ export function ReceiptDetailModal({
                         }}
                       >
                         <img
-                          src={receiptsApi.previewUrl(receipt.id)}
+                          src={customPreviewUrl || receiptsApi.previewUrl(receipt.id)}
                           className="w-full h-auto select-none block"
                           alt="Beleg"
                           draggable={false}
@@ -1033,21 +1129,13 @@ export function ReceiptDetailModal({
                                       )}{" "}
                                       / Stück
                                     </p>
-                                    {(() => {
-                                      const totalAssigned = Object.values(qtyAssignments).reduce((s, u) => s + u, 0);
-                                      return participants.map((part) => {
+                                    {participants.map((part) => {
                                       const units =
                                         qtyAssignments[part.id] ??
-                                        (part.id === "owner"
-                                          ? (pos.quantity ?? 1)
-                                          : 0);
-                                      const partAmount =
-                                        (units / pos.quantity!) * pos.amount;
+                                        (part.id === "owner" ? (pos.quantity ?? 1) : 0);
+                                      const partAmount = (units / pos.quantity!) * pos.amount;
                                       return (
-                                        <div
-                                          key={part.id}
-                                          className="flex items-center gap-2"
-                                        >
+                                        <div key={part.id} className="flex items-center gap-2">
                                           <span className="text-xs font-medium flex-1 truncate">
                                             {part.name}
                                           </span>
@@ -1055,11 +1143,7 @@ export function ReceiptDetailModal({
                                             <button
                                               type="button"
                                               onClick={() =>
-                                                setQuantityAssignment(
-                                                  pIdx,
-                                                  part.id,
-                                                  units - 1,
-                                                )
+                                                setQuantityAssignment(pIdx, part.id, units - 1)
                                               }
                                               disabled={units <= 0}
                                               className="h-6 w-6 rounded border border-border/60 flex items-center justify-center text-sm leading-none hover:bg-muted disabled:opacity-30"
@@ -1072,30 +1156,20 @@ export function ReceiptDetailModal({
                                             <button
                                               type="button"
                                               onClick={() =>
-                                                setQuantityAssignment(
-                                                  pIdx,
-                                                  part.id,
-                                                  units + 1,
-                                                )
+                                                setQuantityAssignment(pIdx, part.id, units + 1)
                                               }
-                                              disabled={totalAssigned >= (pos.quantity ?? 1)}
+                                              disabled={units >= (pos.quantity ?? 1)}
                                               className="h-6 w-6 rounded border border-border/60 flex items-center justify-center text-sm leading-none hover:bg-muted disabled:opacity-30"
                                             >
                                               +
                                             </button>
                                           </div>
                                           <span className="text-xs font-mono text-muted-foreground w-16 text-right">
-                                            {units > 0
-                                              ? formatCurrency(
-                                                  partAmount,
-                                                  waehrung,
-                                                )
-                                              : "—"}
+                                            {units > 0 ? formatCurrency(partAmount, waehrung) : "—"}
                                           </span>
                                         </div>
                                       );
-                                    });
-                                    })()}
+                                    })}
                                   </div>
                                 ) : (
                                   /* Toggle-based assignment */
@@ -1133,14 +1207,16 @@ export function ReceiptDetailModal({
                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                               Beteiligte & Summen
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={addItem}
-                              className="h-6 gap-1 px-2 text-[11px] text-muted-foreground"
-                            >
-                              <Plus className="h-3 w-3" /> Person
-                            </Button>
+                            {!isRecipient && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={addItem}
+                                className="h-6 gap-1 px-2 text-[11px] text-muted-foreground"
+                              >
+                                <Plus className="h-3 w-3" /> Person
+                              </Button>
+                            )}
                           </div>
                           <div className="flex items-center justify-between h-8 px-2 rounded-lg bg-muted/30 text-sm">
                             <span className="text-muted-foreground font-medium">
@@ -1195,25 +1271,31 @@ export function ReceiptDetailModal({
                                 className="flex gap-2 items-center"
                               >
                                 <div className="flex-1">
-                                  <PersonPicker
-                                    item={item}
-                                    index={idx}
-                                    knownPersons={knownPersons}
-                                    idPrefix="detail-modal"
-                                    onChange={updateItem}
-                                  />
+                                  {isRecipient ? (
+                                    <span className="text-sm font-semibold text-foreground px-2 h-9 flex items-center">{item.freeName}</span>
+                                  ) : (
+                                    <PersonPicker
+                                      item={item}
+                                      index={idx}
+                                      knownPersons={knownPersons}
+                                      idPrefix="detail-modal"
+                                      onChange={updateItem}
+                                    />
+                                  )}
                                 </div>
                                 <div className="w-20 h-9 flex items-center justify-end px-2 rounded-lg border border-border bg-background font-mono font-semibold text-sm">
                                   {formatCurrency(amt, waehrung)}
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeItem(idx)}
-                                  className="h-9 w-9 flex-shrink-0"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                {!isRecipient && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeItem(idx)}
+                                    className="h-9 w-9 flex-shrink-0"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             );
                           })}
@@ -1225,6 +1307,11 @@ export function ReceiptDetailModal({
               </div>
 
               {/* Sticky action footer */}
+              {recipientShareInvalid && (
+                <p className="flex-shrink-0 px-5 pb-1 pt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Dir ist aktuell kein Anteil zugewiesen. Weise dir mindestens eine Position zu, um zu speichern.
+                </p>
+              )}
               <div className="flex-shrink-0 flex gap-3 px-5 py-4 border-t border-border/40 bg-background/80 backdrop-blur-sm">
                 <Button
                   variant="outline"
@@ -1238,24 +1325,64 @@ export function ReceiptDetailModal({
                   onClick={handleSplitSubmit}
                   disabled={
                     busy ||
-                    items.every((i) =>
+                    recipientShareInvalid ||
+                    (!isRecipient && items.every((i) =>
                       splitMode === "positions"
                         ? !parseFloat(i.betrag)
                         : (!i.toUser && !i.freeName.trim() && !i.searchInput.trim()) || !parseFloat(i.betrag),
-                    )
+                    ))
                   }
                   className="flex-1"
                 >
                   {busy
                     ? "Speichern…"
-                    : hasExisting
-                      ? "Aktualisieren"
-                      : "Aufteilung speichern"}
+                    : isRecipient
+                      ? "Speichern & Annehmen"
+                      : hasExisting
+                        ? "Aktualisieren"
+                        : "Aufteilung speichern"}
                 </Button>
               </div>
             </TabsContent>
           </Tabs>
-        )}
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col h-[70vh] w-full overflow-hidden rounded-xl border border-border/60 bg-background">
+        {tabs}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog
+      open={receipt !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        className={[
+          "flex flex-col gap-0 p-0 overflow-hidden",
+          "left-0 top-0 translate-x-0 translate-y-0 w-screen h-screen max-w-none rounded-none",
+          "md:left-[50%] md:top-[50%] md:-translate-x-1/2 md:-translate-y-1/2 md:w-auto md:h-[85vh] md:max-w-2xl md:rounded-2xl",
+        ].join(" ")}
+      >
+        {/* ── Header ───────────────────────────────────────────── */}
+        <DialogHeader className="flex-shrink-0 px-5 pt-3 pb-3 border-b border-border/40">
+          <DialogTitle className="text-base">
+            {receipt?.haendler ?? "Beleg"}
+          </DialogTitle>
+          {receipt && (
+            <DialogDescription className="text-xs">
+              {formatDateIso(receipt.datum)} ·{" "}
+              {formatCurrency(receipt.betrag, receipt.waehrung)}
+              {receipt.kategorie ? ` · ${receipt.kategorie}` : ""}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        {tabs}
       </DialogContent>
     </Dialog>
   );

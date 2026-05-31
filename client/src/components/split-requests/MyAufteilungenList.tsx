@@ -4,18 +4,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link2, ArrowLeftRight, Trash2, Share2, Copy, Check } from "lucide-react";
-import { useOutgoingRequests, useUpdateRequestStatus, useDeleteRequest } from "@/hooks/useSplitRequests";
+import { useOutgoingRequests, useUpdateRequestStatus, useDeleteRequest, useApproveRequest } from "@/hooks/useSplitRequests";
 import { useShareLinksList } from "@/hooks/useShareLinks";
 import { useToast } from "@/components/ui/use-toast";
 import { bankApi } from "@/api/bank";
 import { SplitBankTxDialog } from "@/components/bank/SplitBankTxDialog";
 import { ShareLinkDialog } from "@/components/split-requests/ShareLinkDialog";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
+import { useReceipts } from "@/hooks/useReceipts";
+import { ReceiptDetailModal } from "@/components/receipts/ReceiptDetailModal";
+import { receiptsApi } from "@/api/receipts";
+import { AdjustedPositionsView } from "@/components/split-requests/AdjustedPositionsView";
 import type { OutgoingRequest, SplitRequestStatus } from "@/api/splitRequests";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   pending:   { label: "Ausstehend",   cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   accepted:  { label: "Angenommen",  cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  angepasst: { label: "Angepasst",   cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
   rejected:  { label: "Abgelehnt",   cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   cancelled: { label: "Storniert",   cls: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" },
   settled:   { label: "Ausgeglichen", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -36,6 +41,8 @@ export function MyAufteilungenList() {
   const { data, isLoading } = useOutgoingRequests();
   const { data: bankData } = useQuery({ queryKey: ["bank-transactions"], queryFn: () => bankApi.listTransactions() });
   const { data: shareLinksData } = useShareLinksList();
+  const { data: receiptsData } = useReceipts();
+  const approveMutation = useApproveRequest();
   const qc = useQueryClient();
   const { toast } = useToast();
   const deleteRequest = useDeleteRequest();
@@ -43,6 +50,8 @@ export function MyAufteilungenList() {
   const [linkSplit, setLinkSplit] = useState<OutgoingRequest | null>(null);
   const [shareTarget, setShareTarget] = useState<{ name: string; email?: string } | null>(null);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+  const [detailReceipt, setDetailReceipt] = useState<any | null>(null);
+  const [detailTab, setDetailTab] = useState<"beleg" | "details" | "aufteilen">("aufteilen");
 
   async function handleCopy(linkId: string, token: string) {
     const url = `${window.location.origin}/share/${token}`;
@@ -202,9 +211,20 @@ export function MyAufteilungenList() {
           const meta = first.receiptMeta;
           return (
             <div key={first.receiptSqliteId ?? first.receiptId ?? first.id} className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 bg-muted/20 border-b border-border flex items-center justify-between">
+              <div 
+                className="px-4 py-3 bg-muted/20 border-b border-border flex items-center justify-between cursor-pointer hover:bg-muted/40 transition-colors"
+                onClick={() => {
+                  const rc = receiptsData?.rows?.find((row) => row.id === first.receiptSqliteId);
+                  if (rc) {
+                    setDetailReceipt(rc);
+                    setDetailTab(rc.driveLink ? "beleg" : "aufteilen");
+                  } else {
+                    toast({ title: "Beleg nicht gefunden", description: "Der zugehörige Beleg ist in deiner Liste nicht verfügbar." });
+                  }
+                }}
+              >
                 <div>
-                  <p className="font-semibold text-sm">{meta.haendler}</p>
+                  <p className="font-semibold text-sm hover:underline">{meta.haendler}</p>
                   <p className="text-xs text-muted-foreground">{formatDateIso(meta.datum)} · {formatCurrency(meta.gesamtbetrag, meta.waehrung)}</p>
                 </div>
               </div>
@@ -215,20 +235,28 @@ export function MyAufteilungenList() {
                   const linkedTx = r.linkedBankTxId ? txMap.get(r.linkedBankTxId) : undefined;
                   const personName = r.toUser?.name ?? r.freeName ?? "—";
                   return (
-                    <div 
-                      key={r.id} 
-                      className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-muted/5 transition-colors"
+                    <div
+                      key={r.id}
+                      className="px-4 py-3.5 hover:bg-muted/5 transition-colors"
                     >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
                       <div className="flex-1 min-w-0 flex flex-col gap-1">
                         <div className="flex items-center justify-between sm:justify-start gap-2">
                           <span className="font-semibold text-sm text-foreground">{personName}</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
-                              {label}
-                            </span>
-                            {r.adjustedByRecipient && (
-                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                                Angepasst
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {!r.adjustedByRecipient && (
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>
+                                {label}
+                              </span>
+                            )}
+                            {r.adjustedByRecipient === 1 && (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 animate-pulse">
+                                Angepasst (Freigabe ausstehend)
+                              </span>
+                            )}
+                            {r.adjustedByRecipient === 2 && (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                Angepasst (Freigegeben)
                               </span>
                             )}
                             <span className="font-bold text-sm sm:hidden text-foreground">
@@ -254,7 +282,7 @@ export function MyAufteilungenList() {
                       <div className="flex items-center justify-between sm:justify-end gap-2 border-t border-border/40 pt-2.5 sm:pt-0 sm:border-0 flex-wrap">
                         {/* Status Select / Cancel Button */}
                         <div className="flex-1 sm:flex-none">
-                          {!r.linkedBankTxId && r.freeName && (
+                          {!r.linkedBankTxId && r.freeName && r.status !== "angepasst" && (
                             <Select
                               value={r.status}
                               onValueChange={(v) => handleStatusChange(r.id, v as SplitRequestStatus)}
@@ -280,7 +308,18 @@ export function MyAufteilungenList() {
                               onClick={() => handleStatusChange(r.id, "cancelled")}
                               disabled={updateStatus.isPending}
                             >
-                              Zurückziehen
+                               Zurückziehen
+                            </Button>
+                          )}
+                          {r.adjustedByRecipient === 1 && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-8 w-full sm:w-auto text-xs px-3 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5"
+                              onClick={() => approveMutation.mutate(r.id)}
+                              disabled={approveMutation.isPending}
+                            >
+                              <Check className="h-3.5 w-3.5" /> Freigeben
                             </Button>
                           )}
                         </div>
@@ -311,6 +350,16 @@ export function MyAufteilungenList() {
                           </Button>
                         </div>
                       </div>
+                      </div>
+                      {(r.adjustedByRecipient ?? 0) >= 1 && r.positions && r.positions.length > 0 && (
+                        <AdjustedPositionsView
+                          positions={r.positions}
+                          waehrung={meta.waehrung}
+                          originalBetrag={r.originalBetrag}
+                          betrag={r.betrag}
+                          originalPositions={r.originalPositions}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -334,6 +383,25 @@ export function MyAufteilungenList() {
           qc.invalidateQueries({ queryKey: ["bank-transactions"] });
           qc.invalidateQueries({ queryKey: ["split-requests"] });
         }}
+      />
+      <ReceiptDetailModal
+        receipt={detailReceipt}
+        initialTab={detailTab}
+        onClose={() => setDetailReceipt(null)}
+        onEdit={async (values) => {
+          if (!detailReceipt) return;
+          try {
+            await receiptsApi.update(detailReceipt.id, values);
+            qc.invalidateQueries({ queryKey: ["receipts"] });
+            qc.invalidateQueries({ queryKey: ["split-requests"] });
+            toast({ title: "Beleg aktualisiert" });
+            setDetailReceipt(null);
+          } catch (e) {
+            toast({ title: "Speichern fehlgeschlagen", description: String((e as Error).message), variant: "destructive" });
+          }
+        }}
+        editBusy={false}
+        existingSplits={data?.requests ?? []}
       />
     </>
   );

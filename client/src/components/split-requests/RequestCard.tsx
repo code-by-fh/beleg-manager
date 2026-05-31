@@ -3,14 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateIso } from "@/lib/formatters";
-import { useUpdateRequestStatus, useDeleteRequest } from "@/hooks/useSplitRequests";
+import { useUpdateRequestStatus, useDeleteRequest, useAdjustRequest } from "@/hooks/useSplitRequests";
 import { useToast } from "@/components/ui/use-toast";
-import { ReceiptPreviewModal } from "./ReceiptPreviewModal";
+import { ReceiptDetailModal } from "@/components/receipts/ReceiptDetailModal";
+import { splitRequestsApi } from "@/api/splitRequests";
 import type { IncomingRequest, OutgoingRequest } from "@/api/splitRequests";
 
 const STATUS_LABELS: Record<string, string> = {
   pending:   "Ausstehend",
   accepted:  "Angenommen",
+  angepasst: "Angepasst",
   rejected:  "Abgelehnt",
   cancelled: "Storniert",
   settled:   "Ausgeglichen",
@@ -19,6 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   pending:   "default",
   accepted:  "secondary",
+  angepasst: "outline",
   rejected:  "destructive",
   cancelled: "outline",
   settled:   "secondary",
@@ -30,7 +33,9 @@ type OutgoingCardProps = { request: OutgoingRequest };
 export function IncomingRequestCard({ request }: IncomingCardProps) {
   const { toast } = useToast();
   const updateStatus = useUpdateRequestStatus();
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const adjustMutation = useAdjustRequest();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [initialTab, setInitialTab] = useState<"beleg" | "aufteilen">("beleg");
 
   async function handleStatus(status: "accepted" | "rejected") {
     try {
@@ -43,6 +48,26 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
 
   const meta = request.receiptMeta;
 
+  const mockReceipt = {
+    id: request.receiptSqliteId || request.receiptId || request.id,
+    user_id: "",
+    datum: meta.datum,
+    haendler: meta.haendler,
+    betrag: meta.gesamtbetrag, // total receipt amount!
+    mwst: 0,
+    trinkgeld: 0,
+    waehrung: meta.waehrung,
+    kategorie: "",
+    zahlungsmethode: "",
+    rechnungsnummer: "",
+    driveLink: request.receiptId ? "mock" : "", // represents having a file
+    eingabe_typ: "foto",
+    erstellt_am: "",
+  };
+
+  const previewUrl = request.receiptId ? splitRequestsApi.receiptPreviewUrl(request.id) : undefined;
+  const canEdit = (request.status === "pending" || request.status === "accepted" || request.status === "angepasst") && request.positions && request.positions.length > 0;
+
   return (
     <>
       <Card className="overflow-hidden border-border bg-card shadow-sm hover:shadow-md transition-shadow">
@@ -54,12 +79,26 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
               </p>
               <p className="text-xs text-muted-foreground truncate">{request.fromUser?.email}</p>
             </div>
-            <Badge 
-              variant={STATUS_VARIANTS[request.status]}
-              className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0"
-            >
-              {STATUS_LABELS[request.status]}
-            </Badge>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {!request.adjustedByRecipient && (
+                <Badge
+                  variant={STATUS_VARIANTS[request.status]}
+                  className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0"
+                >
+                  {STATUS_LABELS[request.status]}
+                </Badge>
+              )}
+              {request.adjustedByRecipient === 1 && (
+                <Badge variant="outline" className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0 border-orange-200 text-orange-700 bg-orange-50 animate-pulse">
+                  Angepasst (Freigabe ausstehend)
+                </Badge>
+              )}
+              {request.adjustedByRecipient === 2 && (
+                <Badge variant="outline" className="font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 flex-shrink-0 border-emerald-200 text-emerald-700 bg-emerald-50">
+                  Angepasst (Freigegeben)
+                </Badge>
+              )}
+            </div>
           </div>
 
           <div className="p-3 bg-muted/30 rounded-lg flex items-center justify-between gap-4 text-sm">
@@ -85,10 +124,20 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setPreviewOpen(true)}
+                onClick={() => { setInitialTab("beleg"); setModalOpen(true); }}
                 className="w-full sm:w-auto h-9 text-xs font-medium"
               >
                 Beleg ansehen
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setInitialTab("aufteilen"); setModalOpen(true); }}
+                className="w-full sm:w-auto h-9 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5"
+              >
+                Anpassen
               </Button>
             )}
             {request.status === "pending" && (
@@ -115,7 +164,26 @@ export function IncomingRequestCard({ request }: IncomingCardProps) {
           </div>
         </CardContent>
       </Card>
-      <ReceiptPreviewModal request={request} open={previewOpen} onClose={() => setPreviewOpen(false)} />
+      <ReceiptDetailModal
+        receipt={modalOpen ? (mockReceipt as any) : null}
+        initialTab={initialTab}
+        onClose={() => setModalOpen(false)}
+        onEdit={async () => {}}
+        editBusy={false}
+        existingSplits={[]}
+        isRecipient={true}
+        recipientRequest={request}
+        customPreviewUrl={previewUrl}
+        onAdjustSplit={async (betrag, positions) => {
+          try {
+            await adjustMutation.mutateAsync({ id: request.id, betrag, positions });
+            toast({ title: "Aufteilung angepasst & akzeptiert!" });
+            setModalOpen(false);
+          } catch {
+            toast({ title: "Fehler beim Anpassen", variant: "destructive" });
+          }
+        }}
+      />
     </>
   );
 }

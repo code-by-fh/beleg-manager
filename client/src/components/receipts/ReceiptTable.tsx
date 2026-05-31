@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExternalLink, Pencil, Trash2, ArrowUpDown, ChevronUp, ChevronDown, SplitSquareHorizontal, ArrowLeftRight, Link2, Columns3, LayoutList, LayoutGrid, Download } from "lucide-react";
@@ -140,7 +141,7 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
   const [linkTxRow, setLinkTxRow] = useState<ReceiptRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ column: keyof ReceiptRow; direction: "asc" | "desc" }>({
-    column: "erstelltAm",
+    column: "datum",
     direction: "desc",
   });
   const [colVisibility, setColVisibility] = useState<Record<ColumnKey, boolean>>(loadColumnVisibility);
@@ -287,6 +288,23 @@ export function ReceiptTable({ hideFilters, limit }: ReceiptTableProps) {
             <span />
           )}
           <div className="flex items-center gap-2">
+            <Select
+              value={`${sortConfig.column}:${sortConfig.direction}`}
+              onValueChange={(v) => {
+                const [col, dir] = v.split(":") as [keyof ReceiptRow, "asc" | "desc"];
+                setSortConfig({ column: col, direction: dir });
+              }}
+            >
+              <SelectTrigger className="h-7 text-xs bg-card border-border/40 shadow-sm w-auto gap-1 pr-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="datum:desc">Belegdatum (neueste)</SelectItem>
+                <SelectItem value="datum:asc">Belegdatum (älteste)</SelectItem>
+                <SelectItem value="erstelltAm:desc">Erstelldatum (neueste)</SelectItem>
+                <SelectItem value="erstelltAm:asc">Erstelldatum (älteste)</SelectItem>
+              </SelectContent>
+            </Select>
             <a
               href={`${import.meta.env.VITE_API_URL ?? ""}/api/receipts/export/csv`}
               download="belege.csv"
